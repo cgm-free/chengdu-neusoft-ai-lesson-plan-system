@@ -623,6 +623,7 @@ DB_PASSWORD=这里是真实数据库密码
 AI_API_KEY=这里是真实DeepSeekKey
 AI_MODEL_NAME=deepseek-v4-flash
 AI_BASE_URL=https://api.deepseek.com
+CORS_ALLOWED_ORIGIN_PATTERNS=https://nsu-lesson.xyz,https://www.nsu-lesson.xyz,http://8.137.148.233,http://localhost:*,http://127.0.0.1:*
 UPLOAD_TMP_DIR=/opt/chengdu-neusoft-ai-lesson-plan-system/data/uploads/tmp
 COURSE_PLAN_DEFAULT_TEMPLATE_PATH=/opt/chengdu-neusoft-ai-lesson-plan-system/data/templates/20XX-20XX学年第X学期《课程名称》-课程教案（模版).docx
 OCR_ENABLED=false
@@ -665,6 +666,65 @@ curl http://127.0.0.1:8080/api/health
 改 API Key 不需要重新部署前端。
 改 API Key 不需要重新打包后端。
 只需要改 /etc/nsu-maic-backend.env，然后重启后端服务。
+```
+
+## 16.1 生产域名登录 403 怎么排查
+
+本次 HTTPS 部署后，浏览器登录曾出现：
+
+```text
+POST https://nsu-lesson.xyz/api/auth/login 403 (Forbidden)
+```
+
+命令行 `curl` 不带浏览器 `Origin` 请求头时可以登录，但浏览器登录失败。最终定位为后端 CORS 没有允许生产域名。
+
+CORS 可以理解为：
+
+```text
+浏览器为了安全，会告诉后端“这个请求来自哪个网页域名”。
+如果后端没有允许这个来源，Spring 会拒绝请求。
+```
+
+生产环境允许来源配置在：
+
+```text
+/etc/nsu-maic-backend.env
+```
+
+关键配置：
+
+```env
+CORS_ALLOWED_ORIGIN_PATTERNS=https://nsu-lesson.xyz,https://www.nsu-lesson.xyz,http://8.137.148.233,http://localhost:*,http://127.0.0.1:*
+```
+
+如果以后换域名，需要把新域名加入这一行，例如：
+
+```env
+CORS_ALLOWED_ORIGIN_PATTERNS=https://新域名,https://www.新域名,http://8.137.148.233,http://localhost:*,http://127.0.0.1:*
+```
+
+改完后重启后端：
+
+```bash
+systemctl restart nsu-maic-backend
+```
+
+验证带 `Origin` 的登录请求：
+
+```powershell
+'{"username":"admin","password":"admin123456"}' | Set-Content -Encoding ascii $env:TEMP\login-admin.json
+
+curl.exe -i -X POST https://nsu-lesson.xyz/api/auth/login `
+  -H "Content-Type: application/json" `
+  -H "Origin: https://nsu-lesson.xyz" `
+  --data-binary "@$env:TEMP\login-admin.json"
+```
+
+成功时应该看到：
+
+```text
+HTTP/1.1 200
+Access-Control-Allow-Origin: https://nsu-lesson.xyz
 ```
 
 ## 17. 用户上传文件保存在哪里

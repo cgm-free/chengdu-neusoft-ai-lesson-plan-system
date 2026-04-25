@@ -10,6 +10,7 @@ DB_PASSWORD="${DB_PASSWORD:-}"
 AI_API_KEY="${AI_API_KEY:-}"
 AI_MODEL_NAME="${AI_MODEL_NAME:-deepseek-v4-flash}"
 AI_BASE_URL="${AI_BASE_URL:-https://api.deepseek.com}"
+CORS_ALLOWED_ORIGIN_PATTERNS="${CORS_ALLOWED_ORIGIN_PATTERNS:-http://8.137.148.233,http://localhost:*,http://127.0.0.1:*}"
 
 if [[ -z "${DB_PASSWORD}" ]]; then
   echo "DB_PASSWORD is required. Example: DB_PASSWORD='your-password' AI_API_KEY='sk-...' bash server-install.sh"
@@ -83,6 +84,7 @@ DB_PASSWORD=${DB_PASSWORD}
 AI_API_KEY=${AI_API_KEY}
 AI_MODEL_NAME=${AI_MODEL_NAME}
 AI_BASE_URL=${AI_BASE_URL}
+CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS}
 UPLOAD_TMP_DIR=${APP_DIR}/data/uploads/tmp
 COURSE_PLAN_DEFAULT_TEMPLATE_PATH=${APP_DIR}/data/templates/$(basename "${TEMPLATE_FILE}")
 OCR_ENABLED=false
@@ -108,6 +110,7 @@ StandardError=append:${APP_DIR}/logs/backend.err.log
 WantedBy=multi-user.target
 EOF
 
+if [[ ! -f /etc/nginx/sites-available/nsu-maic ]]; then
 cat >/etc/nginx/sites-available/nsu-maic <<EOF
 server {
     listen 80;
@@ -133,6 +136,7 @@ server {
     }
 }
 EOF
+fi
 
 ln -sf /etc/nginx/sites-available/nsu-maic /etc/nginx/sites-enabled/nsu-maic
 rm -f /etc/nginx/sites-enabled/default

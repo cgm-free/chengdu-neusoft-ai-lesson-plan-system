@@ -18,6 +18,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 maic:
+  cors:
+    allowed-origin-patterns: http://localhost:*,http://127.0.0.1:*
   ai:
     provider: deepseek
     model-name: deepseek-v4-flash

@@ -11,6 +11,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 maic:
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS}
   ai:
     provider: deepseek
     model-name: ${AI_MODEL_NAME:deepseek-v4-flash}
