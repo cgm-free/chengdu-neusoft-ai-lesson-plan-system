@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: nsu-edu-maic-backend
+  profiles:
+    active: local
+  servlet:
+    multipart:
+      location: E:/nsu-edu-maic/tmp/uploads
+      max-file-size: 50MB
+      max-request-size: 100MB
+  datasource:
+    url: jdbc:mysql://localhost:3306/nsu_edu_maic?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+maic:
+  ai:
+    provider: deepseek
+    model-name: deepseek-v4-flash
+    api-key: ${AI_API_KEY:}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com}
+  ocr:
+    enabled: true
+    python-command: ${OCR_PYTHON:python}
+    script-path: ${OCR_SCRIPT_PATH:scripts/paddle_ocr.py}

@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    password: "replace-with-local-mysql-password"
+
+maic:
+  ai:
+    provider: deepseek
+    model-name: deepseek-v4-flash
+    base-url: https://api.deepseek.com
+    api-key: "replace-with-deepseek-api-key"

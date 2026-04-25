@@ -1,0 +1,32 @@
+.idea/
+.vscode/
+target/
+node_modules/
+dist/
+*.log
+.env
+backend/src/main/resources/application-local.yml
+
+# Local runtime output
+.playwright-mcp/
+logs/
+tmp/
+backend/backend-run.log
+
+# Uploaded/generated teaching materials kept outside source control
+/*.ppt
+/*.pptx
+/*.doc
+/*.docx
+/*.pdf
+/*.xls
+/*.xlsx
+/*.jfif
+/login_background.png
+/21675351-9af9-42b0-be80-0b3d678bd087.png
+/《程序设计基础(C语言)》/
+
+# OS/editor temporary files
+~$*
+Thumbs.db
+.DS_Store
