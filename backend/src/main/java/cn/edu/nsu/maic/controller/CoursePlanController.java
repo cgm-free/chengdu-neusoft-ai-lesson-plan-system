@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,10 +39,10 @@ import java.util.List;
 @RequestMapping("/api/course-plans")
 public class CoursePlanController {
 
-    private static final Path DEFAULT_TEMPLATE_PATH = Path.of("E:/nsu-edu-maic/20XX-20XX学年第X学期《课程名称》-课程教案（模版).docx");
     private static final String EXPORT_FILENAME_HEADER = "X-Course-Plan-Filename";
     private static final String DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+    private final Path defaultTemplatePath;
     private final AuthService authService;
     private final CoursePlanAnalysisService coursePlanAnalysisService;
     private final CoursePlanService coursePlanService;
@@ -50,6 +51,7 @@ public class CoursePlanController {
     private final CoursePlanPdfExportService coursePlanPdfExportService;
 
     public CoursePlanController(
+            @Value("${maic.course-plan.default-template-path}") String defaultTemplatePath,
             AuthService authService,
             CoursePlanAnalysisService coursePlanAnalysisService,
             CoursePlanService coursePlanService,
@@ -57,6 +59,7 @@ public class CoursePlanController {
             CoursePlanWordExportService coursePlanWordExportService,
             CoursePlanPdfExportService coursePlanPdfExportService
     ) {
+        this.defaultTemplatePath = Path.of(defaultTemplatePath);
         this.authService = authService;
         this.coursePlanAnalysisService = coursePlanAnalysisService;
         this.coursePlanService = coursePlanService;
@@ -325,14 +328,14 @@ public class CoursePlanController {
     }
 
     private byte[] loadDefaultTemplateBytes() throws IOException {
-        if (!Files.isRegularFile(DEFAULT_TEMPLATE_PATH)) {
-            throw new IllegalStateException("默认教案模板不存在：" + DEFAULT_TEMPLATE_PATH);
+        if (!Files.isRegularFile(defaultTemplatePath)) {
+            throw new IllegalStateException("默认教案模板不存在：" + defaultTemplatePath);
         }
-        return Files.readAllBytes(DEFAULT_TEMPLATE_PATH);
+        return Files.readAllBytes(defaultTemplatePath);
     }
 
     private String defaultTemplateFileName() {
-        return DEFAULT_TEMPLATE_PATH.getFileName().toString();
+        return defaultTemplatePath.getFileName().toString();
     }
 
     private MultipartFile toMultipartFile(CoursePlanService.TemplateBinary value) {

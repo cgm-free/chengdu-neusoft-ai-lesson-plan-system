@@ -1,0 +1,24 @@
+spring:
+  servlet:
+    multipart:
+      location: ${UPLOAD_TMP_DIR:/opt/chengdu-neusoft-ai-lesson-plan-system/data/uploads/tmp}
+      max-file-size: ${MAX_FILE_SIZE:80MB}
+      max-request-size: ${MAX_REQUEST_SIZE:300MB}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/nsu_edu_maic?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:nsu_maic}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+maic:
+  ai:
+    provider: deepseek
+    model-name: ${AI_MODEL_NAME:deepseek-v4-flash}
+    api-key: ${AI_API_KEY}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com}
+  ocr:
+    enabled: ${OCR_ENABLED:false}
+    python-command: ${OCR_PYTHON:python3}
+    script-path: ${OCR_SCRIPT_PATH:/opt/chengdu-neusoft-ai-lesson-plan-system/backend/scripts/paddle_ocr.py}
+  course-plan:
+    default-template-path: ${COURSE_PLAN_DEFAULT_TEMPLATE_PATH:/opt/chengdu-neusoft-ai-lesson-plan-system/data/templates/20XX-20XX学年第X学期《课程名称》-课程教案（模版).docx}

@@ -3,10 +3,12 @@ package cn.edu.nsu.maic.config;
 import cn.edu.nsu.maic.service.AuthService;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+@Order(10)
 public class DataInitializer implements ApplicationRunner {
 
     private final JdbcTemplate jdbcTemplate;
@@ -40,4 +42,3 @@ public class DataInitializer implements ApplicationRunner {
         );
     }
 }
-
