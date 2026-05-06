@@ -34,7 +34,7 @@ public class DeepSeekLessonPlanGenerator implements AiLessonPlanGenerator {
     @Value("${maic.ai.provider:deepseek}")
     private String provider;
 
-    @Value("${maic.ai.model-name:deepseek-v4-flash}")
+    @Value("${maic.ai.model-name:deepseek-v4-pro}")
     private String modelName;
 
     @Value("${maic.ai.api-key:}")

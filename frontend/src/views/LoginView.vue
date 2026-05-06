@@ -74,14 +74,22 @@ import nsuBrand from '../assets/nsu-brand.png'
 
 const router = useRouter()
 const route = useRoute()
+const REMEMBERED_USERNAME_KEY = 'nsu_maic_remembered_username'
+const REMEMBERED_PASSWORD_KEY = 'nsu_maic_remembered_password'
+const LEGACY_USERNAME_KEY = 'nsu_maic_last_username'
+
+const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY)
+  || localStorage.getItem(LEGACY_USERNAME_KEY)
+  || ''
+const rememberedPassword = localStorage.getItem(REMEMBERED_PASSWORD_KEY) || ''
 
 const form = ref({
-  username: localStorage.getItem('nsu_maic_last_username') || 'admin',
-  password: 'admin123456',
+  username: rememberedUsername,
+  password: rememberedPassword,
 })
 const loggingIn = ref(false)
 const checkingSession = ref(Boolean(localStorage.getItem('nsu_maic_token')))
-const rememberUser = ref(Boolean(localStorage.getItem('nsu_maic_last_username')))
+const rememberUser = ref(Boolean(rememberedUsername || rememberedPassword))
 
 const redirectTarget = computed(() => {
   const target = String(route.query.redirect || '').trim()
@@ -112,10 +120,13 @@ async function handleSubmit() {
     const result = await login(form.value)
     localStorage.setItem('nsu_maic_token', result.token)
     if (rememberUser.value) {
-      localStorage.setItem('nsu_maic_last_username', form.value.username)
+      localStorage.setItem(REMEMBERED_USERNAME_KEY, form.value.username)
+      localStorage.setItem(REMEMBERED_PASSWORD_KEY, form.value.password)
     } else {
-      localStorage.removeItem('nsu_maic_last_username')
+      localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+      localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
     }
+    localStorage.removeItem(LEGACY_USERNAME_KEY)
     ElMessage.success('登录成功')
     await router.replace(redirectTarget.value)
   } catch (error) {

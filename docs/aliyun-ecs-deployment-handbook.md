@@ -621,7 +621,7 @@ SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/nsu_edu_maic?useUnicode=true&c
 SPRING_DATASOURCE_USERNAME=nsu_maic
 DB_PASSWORD=这里是真实数据库密码
 AI_API_KEY=这里是真实DeepSeekKey
-AI_MODEL_NAME=deepseek-v4-flash
+AI_MODEL_NAME=deepseek-v4-pro
 AI_BASE_URL=https://api.deepseek.com
 CORS_ALLOWED_ORIGIN_PATTERNS=https://nsu-lesson.xyz,https://www.nsu-lesson.xyz,http://8.137.148.233,http://localhost:*,http://127.0.0.1:*
 UPLOAD_TMP_DIR=/opt/chengdu-neusoft-ai-lesson-plan-system/data/uploads/tmp

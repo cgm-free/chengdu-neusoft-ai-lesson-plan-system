@@ -341,10 +341,10 @@ public class CoursePlanWordExportService {
         fillAdjacentCell(table, "教学环境设计", value(unit.environmentDesign()));
         fillAdjacentCell(table, "单元名称", value(unit.name()));
         fillAdjacentCell(table, "项目名称（级别）", valueOrNone(unit.projectName()));
-        fillAdjacentCell(table, "理论知识", joinLines(unit.theoryObjectives()));
-        fillAdjacentCell(table, "专业技能", joinLines(unit.skillObjectives()));
-        fillAdjacentCell(table, "个人素质", joinLines(unit.qualityObjectives()));
-        fillAdjacentCell(table, "教学重点难点", "教学重点：\n" + joinLines(unit.keyPoints()) + "\n\n教学难点：\n" + joinLines(unit.difficultPoints()));
+        fillAdjacentCell(table, "理论知识", numberedLines(unit.theoryObjectives()));
+        fillAdjacentCell(table, "专业技能", numberedLines(unit.skillObjectives()));
+        fillAdjacentCell(table, "个人素质", numberedLines(unit.qualityObjectives()));
+        fillAdjacentCell(table, "教学重点难点", "教学重点：\n" + numberedLines(unit.keyPoints()) + "\n\n教学难点：\n" + numberedLines(unit.difficultPoints()));
         fillAdjacentCell(table, "教学方法手段媒介", value(unit.teachingMethods()));
         fillAdjacentCell(table, "教学组织方式", value(unit.teachingOrganization()));
         fillAdjacentCell(table, "项目简介要求", value(unit.projectIntroduction()));
@@ -1166,6 +1166,19 @@ public class CoursePlanWordExportService {
 
     private String joinLines(List<String> values) {
         return String.join("\n", deduplicate(values));
+    }
+
+    private String numberedLines(List<String> values) {
+        List<String> items = deduplicate(values);
+        List<String> lines = new ArrayList<>();
+        for (int index = 0; index < items.size(); index++) {
+            lines.add((index + 1) + ". " + stripLeadingNumber(items.get(index)));
+        }
+        return String.join("\n", lines);
+    }
+
+    private String stripLeadingNumber(String value) {
+        return value(value).replaceFirst("^\\s*(?:\\d+[\\.、]|[（(]?\\d+[）)]|[一二三四五六七八九十]+[、.])\\s*", "");
     }
 
     private List<String> deduplicate(List<String> values) {

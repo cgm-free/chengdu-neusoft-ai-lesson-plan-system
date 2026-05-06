@@ -13,7 +13,7 @@
           </el-form-item>
           <el-button type="primary" size="large" :loading="loggingIn" @click="handleLogin">登录</el-button>
         </el-form>
-        <p class="hint">默认账号：admin / admin123456，teacher01 / teacher123456</p>
+        <p class="hint">请输入账号密码登录。</p>
       </div>
     </section>
 
@@ -955,7 +955,7 @@ const router = useRouter()
 const user = ref(null)
 const authChecking = ref(Boolean(localStorage.getItem('nsu_maic_token')))
 const loggingIn = ref(false)
-const loginForm = reactive({ username: 'admin', password: 'admin123456' })
+const loginForm = reactive({ username: '', password: '' })
 const activeModule = ref(routeToModule())
 const recordDialogVisible = ref(false)
 const recordDetail = ref(null)

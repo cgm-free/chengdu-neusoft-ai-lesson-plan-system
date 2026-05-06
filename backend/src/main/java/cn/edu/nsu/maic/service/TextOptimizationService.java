@@ -26,7 +26,7 @@ public class TextOptimizationService {
     @Value("${maic.ai.base-url:https://api.deepseek.com}")
     private String baseUrl;
 
-    @Value("${maic.ai.model-name:deepseek-v4-flash}")
+    @Value("${maic.ai.model-name:deepseek-v4-pro}")
     private String modelName;
 
     public TextOptimizationService(ObjectMapper objectMapper) {

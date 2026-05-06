@@ -8,7 +8,7 @@ DB_NAME="${DB_NAME:-nsu_edu_maic}"
 DB_USER="${DB_USER:-nsu_maic}"
 DB_PASSWORD="${DB_PASSWORD:-}"
 AI_API_KEY="${AI_API_KEY:-}"
-AI_MODEL_NAME="${AI_MODEL_NAME:-deepseek-v4-flash}"
+AI_MODEL_NAME="${AI_MODEL_NAME:-deepseek-v4-pro}"
 AI_BASE_URL="${AI_BASE_URL:-https://api.deepseek.com}"
 CORS_ALLOWED_ORIGIN_PATTERNS="${CORS_ALLOWED_ORIGIN_PATTERNS:-http://8.137.148.233,http://localhost:*,http://127.0.0.1:*}"
 

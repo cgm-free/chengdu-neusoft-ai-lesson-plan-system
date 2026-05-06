@@ -22,7 +22,7 @@ maic:
     allowed-origin-patterns: http://localhost:*,http://127.0.0.1:*
   ai:
     provider: deepseek
-    model-name: deepseek-v4-flash
+    model-name: deepseek-v4-pro
     api-key: ${AI_API_KEY:}
     base-url: ${AI_BASE_URL:https://api.deepseek.com}
   ocr:

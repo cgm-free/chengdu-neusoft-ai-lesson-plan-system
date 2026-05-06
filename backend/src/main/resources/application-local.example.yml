@@ -5,6 +5,6 @@ spring:
 maic:
   ai:
     provider: deepseek
-    model-name: deepseek-v4-flash
+    model-name: deepseek-v4-pro
     base-url: https://api.deepseek.com
     api-key: "replace-with-deepseek-api-key"
