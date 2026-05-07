@@ -487,24 +487,11 @@ public class CoursePlanWordExportService {
     }
 
     private String buildTeachingContentLine(String blockTitle, String point) {
-        String title = normalize(blockTitle);
         String content = value(point);
         if (content.isBlank()) {
             return "";
         }
-        if (content.startsWith("【")) {
-            return content;
-        }
-        if (title.contains("核心") || title.contains("讲解")) {
-            return "【讲解】围绕“" + content + "”说明概念含义、结构特征、适用场景和常见错误，结合课件中的图示或板书推导帮助学生形成知识框架。";
-        }
-        if (title.contains("案例") || title.contains("演示")) {
-            return "【演示】以“" + content + "”为案例，展示问题拆解、关键步骤、实现思路和结果验证过程，引导学生说明每一步对应的知识点。";
-        }
-        if (title.contains("练习") || title.contains("互动")) {
-            return "【练习】围绕“" + content + "”安排随堂练习或小组讨论，要求学生完成分析、表达或实现，并即时讲评共性问题。";
-        }
-        return "【讲授】围绕“" + content + "”组织讲授、提问和课堂反馈，明确学习任务、完成标准和课后衔接要求。";
+        return content;
     }
 
     private int sectionMinutes(Integer value, int defaultValue) {

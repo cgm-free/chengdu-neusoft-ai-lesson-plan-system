@@ -28,7 +28,7 @@ public class CoursePlanAiGenerationService {
     private static final int TEACHING_DESIGN_AI_ATTEMPTS = 3;
     private static final int MIN_BLOCK_POINTS = 2;
     private static final int MAX_BLOCK_POINTS = 4;
-    private static final List<String> MAIN_ACTIVITY_TAGS = List.of(
+    private static final List<String> MAIN_ACTIVITY_TAG_EXAMPLES = List.of(
             "概念建构",
             "原理讲解",
             "案例分析",
@@ -41,7 +41,15 @@ public class CoursePlanAiGenerationService {
             "项目推进",
             "练习巩固",
             "阶段小结",
-            "问题探究"
+            "问题探究",
+            "案例教学",
+            "学生研讨",
+            "角色扮演",
+            "合作学习",
+            "任务分析",
+            "自主学习",
+            "读书指导",
+            "问题教学"
     );
     private static final List<String> FORBIDDEN_MAIN_CONTENT_TITLE_FRAGMENTS = List.of(
             "课堂案例与互动",
@@ -402,9 +410,9 @@ public class CoursePlanAiGenerationService {
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. 不要直接粘贴输入原文长段；必须提炼、组织、润色成高校课堂教案表达。
                 3. introduction 写 2-3 行：复习旧课、问题/案例导入、本次任务说明。
-                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个活动类型标签，标签必须从 %s 中选择；活动类型可按教学需要重复，但标题中的具体教学任务不能重复；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
+                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据课次内容自行设计，可参考但不限于：%s；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
                 5. mainContentBlocks.points 每项必须是完整扩写后的教学内容，每个 point 不少于 80 个中文字符，全部 mainContentBlocks 合计目标 1700-2000 字，底线 1500 字。
-                6. 每个主要内容块必须围绕本节课不同教学任务展开，例如概念辨析、案例分析、代码追踪、错误诊断、实验操作、课堂讨论、即时测验、项目推进；禁止每块都写同一套“讲解+案例+演示+反馈”流程。
+                6. 每个主要内容块必须围绕本节课不同教学任务展开，教学方式应覆盖案例教学、学生研讨、角色扮演、演示、练习、合作学习、任务分析、自主学习、读书指导、问题教学等多种形态中的合适组合；禁止每块都写同一套“讲解+案例+演示+反馈”流程。
                 7. title 禁止出现【课堂案例与互动】【演示与练习】【教师反馈与评价】这类多标签堆叠或固定套路。
                 8. summary 要求学生针对本节课知识点、重点和难点进行归纳总结，点明已解决问题和待解决问题。
                 9. assignments 必须是结构化对象，必须包含课程调研、3-5 道习题设计、一个结合本节内容的开放性小项目、提交方式、提交标准。
@@ -413,7 +421,7 @@ public class CoursePlanAiGenerationService {
                 {
                   "introduction": "内容导入正文",
                   "mainContentBlocks": [
-                    {"title":"【概念建构】围绕本次课主题的具体标题", "points":["扩写后的具体教学内容1","扩写后的具体教学内容2"]}
+                    {"title":"【案例教学】围绕本次课主题的具体标题", "points":["扩写后的具体教学内容1","扩写后的具体教学内容2"]}
                   ],
                   "summary": "归纳总结正文",
                   "assignments": {
@@ -428,7 +436,7 @@ public class CoursePlanAiGenerationService {
 
                 证据包：
                 %s
-                """.formatted(String.join("、", MAIN_ACTIVITY_TAGS), mainMinutes, retryInstruction, toJson(context));
+                """.formatted(String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES), mainMinutes, retryInstruction, toJson(context));
     }
 
     private TeachingDesignOutline generateTeachingDesignOutline(
@@ -621,10 +629,10 @@ public class CoursePlanAiGenerationService {
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. 不要直接粘贴输入原文长段；必须提炼、组织、润色成高校课堂教案表达。
                 3. introduction 写 2-3 行：复习旧课、问题/案例导入、本次任务说明。
-                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个活动类型标签，标签必须从 %s 中选择；活动类型可按教学需要重复，但标题中的具体教学任务不能重复；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
+                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据课次内容自行设计，可参考但不限于：%s；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
                 5. mainContentBlocks.points 只写每个内容块要展开的 2-4 个要点短句，不要在本步骤扩写长文。
-                6. 每个内容块必须对应不同教学任务，禁止所有块都套用“课堂案例与互动、演示与练习、教师反馈与评价”固定组合。
-                7. title 禁止出现多组【】标签，只允许一个活动类型标签加一个具体主题标题。
+                6. 每个内容块必须对应不同教学任务，教学方式应根据知识点差异自然变化；禁止所有块都套用“课堂案例与互动、演示与练习、教师反馈与评价”固定组合。
+                7. title 禁止出现多组【】标签，只允许一个教学方式标签加一个具体主题标题。
                 8. summary 要求学生针对本节课知识点、重点和难点进行归纳总结，点明已解决问题和待解决问题。
                 9. assignments 必须是结构化对象，必须包含课程调研、3-5 道习题设计、一个结合本节内容的开放性小项目、提交方式、提交标准。
                 10. 禁止输出学校英文名、Logo、页脚、页码、学习策略、做笔记建议等噪声。%s
@@ -647,7 +655,7 @@ public class CoursePlanAiGenerationService {
 
                 证据包：
                 %s
-                """.formatted(String.join("、", MAIN_ACTIVITY_TAGS), mainMinutes, retryInstruction, toJson(context));
+                """.formatted(String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES), mainMinutes, retryInstruction, toJson(context));
     }
 
     private String buildMainContentOutlineBlockPrompt(
@@ -675,16 +683,16 @@ public class CoursePlanAiGenerationService {
                 请只重新生成课程教案“三、主要内容设计”中的一个主要内容块大纲。
                 严格要求：
                 1. 只返回 JSON，不要 Markdown，不要解释。
-                2. title 只能有 1 个活动类型标签，标签必须从 %s 中选择，并结合本次课主题写出具体标题。
+                2. title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据本块内容自行设计，可参考但不限于：%s。
                 3. points 必须为 2-4 项，每项是可扩写成正式教案正文的要点，必须结合本次课主题。
                 4. 不要输出 minutes，系统会分配时间。
                 5. 禁止使用【课堂案例与互动】【演示与练习】【教师反馈与评价】这类固定套路或多标签堆叠。
                 6. 禁止输出学校英文名、Logo、页脚、页码、学习策略、做笔记建议等噪声。%s
-                JSON 格式：{"title":"【错误诊断】围绕本次课主题的具体标题", "points":["要点1","要点2"]}
+                JSON 格式：{"title":"【问题教学】围绕本次课主题的具体标题", "points":["要点1","要点2"]}
 
                 证据包：
                 %s
-                """.formatted(String.join("、", MAIN_ACTIVITY_TAGS), retryInstruction, toJson(blockContext));
+                """.formatted(String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES), retryInstruction, toJson(blockContext));
     }
 
     private String buildMainContentBlockPrompt(
@@ -714,8 +722,8 @@ public class CoursePlanAiGenerationService {
                 严格要求：
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. points 必须 2-4 项，合计不少于 %d 个中文字符；每项必须是正式教案表达，不少于 80 个中文字符。
-                3. 扩写必须贴合当前内容块的活动类型，不要把每个内容块都写成“讲解、案例、演示、反馈”四件套。
-                4. 根据 blockTitle 选择合适写法：概念建构重在定义和关系梳理，案例分析重在情境与推理，代码演示重在步骤和结果观察，错误诊断重在常见错误与纠正，实验操作重在任务流程和验收。
+                3. 扩写必须贴合当前内容块的教学方式，不要把每个内容块都写成“讲解、案例、演示、反馈”四件套。
+                4. 根据 blockTitle 选择合适写法：案例教学重在情境和迁移，学生研讨重在观点碰撞与归纳，角色扮演重在职责分工和过程体验，任务分析重在问题拆解，问题教学重在设问、追问和证据推理，自主学习/读书指导重在阅读任务和检查方式，演示/练习重在步骤观察、动手验证和即时反馈。
                 5. 只能基于证据包，不编造教材外材料，不粘贴原文长段。
                 6. 禁止输出学校英文名、Logo、页脚、页码、学习策略、做笔记建议等噪声。%s
                 JSON 格式：
@@ -1150,9 +1158,15 @@ public class CoursePlanAiGenerationService {
 
     private void validateMainContentBlockDiversity(String title, List<CoursePlanDtos.MainContentBlock> blocks) {
         LinkedHashSet<String> normalizedTitles = new LinkedHashSet<>();
+        Map<String, Integer> tagCounts = new LinkedHashMap<>();
+        int lectureOrDemoCount = 0;
         for (CoursePlanDtos.MainContentBlock block : safeList(blocks)) {
             String blockTitle = validateMainContentBlockTitle(block.title());
             String tag = extractMainActivityTag(blockTitle);
+            tagCounts.merge(tag, 1, Integer::sum);
+            if (tag.contains("讲授") || tag.contains("讲解") || tag.contains("演示")) {
+                lectureOrDemoCount++;
+            }
             String titleBody = blockTitle.replace("【" + tag + "】", "").trim();
             String normalizedTitle = normalize(titleBody);
             if (normalizedTitle.isBlank()) {
@@ -1162,6 +1176,15 @@ public class CoursePlanAiGenerationService {
                 throw new IllegalStateException("教学设计“" + title + "”的主要内容块标题重复：" + blockTitle);
             }
         }
+        int blockCount = safeList(blocks).size();
+        int requiredDistinctTags = Math.min(4, blockCount);
+        if (blockCount >= 5 && tagCounts.size() < requiredDistinctTags) {
+            throw new IllegalStateException("教学设计“" + title + "”的主要内容设计教学方式过于单一，至少需要 "
+                    + requiredDistinctTags + " 种不同教学方式，当前为 " + tagCounts.keySet());
+        }
+        if (blockCount >= 5 && lectureOrDemoCount > Math.ceil(blockCount / 2.0)) {
+            throw new IllegalStateException("教学设计“" + title + "”的讲授/讲解/演示类教学方式占比过高，应增加案例教学、学生研讨、合作学习、任务分析、问题教学等方式。");
+        }
     }
 
     private String validateMainContentBlockTitle(String value) {
@@ -1170,8 +1193,8 @@ public class CoursePlanAiGenerationService {
             throw new IllegalStateException("主要内容块标题为空。");
         }
         String tag = extractMainActivityTag(title);
-        if (!MAIN_ACTIVITY_TAGS.contains(tag)) {
-            throw new IllegalStateException("主要内容块标题活动类型不在允许范围内：" + title);
+        if (tag.length() > 12) {
+            throw new IllegalStateException("主要内容块标题教学方式标签过长，应使用简短教学方式名称：" + title);
         }
         for (String fragment : FORBIDDEN_MAIN_CONTENT_TITLE_FRAGMENTS) {
             if (title.contains(fragment)) {
@@ -1186,10 +1209,10 @@ public class CoursePlanAiGenerationService {
         int firstOpen = title.indexOf('【');
         int firstClose = title.indexOf('】', firstOpen + 1);
         if (firstOpen < 0 || firstClose < 0 || firstClose <= firstOpen + 1) {
-            throw new IllegalStateException("主要内容块标题必须包含 1 个活动类型标签：" + title);
+            throw new IllegalStateException("主要内容块标题必须包含 1 个教学方式标签：" + title);
         }
         if (title.indexOf('【', firstClose + 1) >= 0 || title.indexOf('】', firstClose + 1) >= 0) {
-            throw new IllegalStateException("主要内容块标题只能包含 1 个活动类型标签，不能多标签堆叠：" + title);
+            throw new IllegalStateException("主要内容块标题只能包含 1 个教学方式标签，不能多标签堆叠：" + title);
         }
         return title.substring(firstOpen + 1, firstClose).trim();
     }
