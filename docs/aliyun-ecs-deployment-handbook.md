@@ -625,7 +625,7 @@ AI_MODEL_NAME=deepseek-v4-flash
 AI_BASE_URL=https://api.deepseek.com
 CORS_ALLOWED_ORIGIN_PATTERNS=https://nsu-lesson.xyz,https://www.nsu-lesson.xyz,http://8.137.148.233,http://localhost:*,http://127.0.0.1:*
 UPLOAD_TMP_DIR=/opt/chengdu-neusoft-ai-lesson-plan-system/data/uploads/tmp
-COURSE_PLAN_DEFAULT_TEMPLATE_PATH=/opt/chengdu-neusoft-ai-lesson-plan-system/data/templates/20XX-20XX学年第X学期《课程名称》-课程教案（模版).docx
+COURSE_PLAN_DEFAULT_TEMPLATE_PATH=/opt/chengdu-neusoft-ai-lesson-plan-system/data/templates/course-plan-template.docx
 OCR_ENABLED=false
 ```
 

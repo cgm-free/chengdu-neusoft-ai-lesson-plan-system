@@ -11,6 +11,7 @@ AI_API_KEY="${AI_API_KEY:-}"
 AI_MODEL_NAME="${AI_MODEL_NAME:-deepseek-v4-flash}"
 AI_BASE_URL="${AI_BASE_URL:-https://api.deepseek.com}"
 CORS_ALLOWED_ORIGIN_PATTERNS="${CORS_ALLOWED_ORIGIN_PATTERNS:-http://8.137.148.233,http://localhost:*,http://127.0.0.1:*}"
+DEFAULT_TEMPLATE_FILE_NAME="course-plan-template.docx"
 
 if [[ -z "${DB_PASSWORD}" ]]; then
   echo "DB_PASSWORD is required. Example: DB_PASSWORD='your-password' AI_API_KEY='sk-...' bash server-install.sh"
@@ -66,7 +67,7 @@ mkdir -p "${APP_DIR}/backend" "${APP_DIR}/frontend" "${APP_DIR}/data/uploads/tmp
 cp "${BACKEND_JAR}" "${APP_DIR}/backend/app.jar"
 rm -rf "${APP_DIR}/frontend/dist"
 cp -r "${BUNDLE_DIR}/frontend/dist" "${APP_DIR}/frontend/dist"
-cp "${TEMPLATE_FILE}" "${APP_DIR}/data/templates/$(basename "${TEMPLATE_FILE}")"
+cp "${TEMPLATE_FILE}" "${APP_DIR}/data/templates/${DEFAULT_TEMPLATE_FILE_NAME}"
 
 mysql -uroot <<SQL
 CREATE DATABASE IF NOT EXISTS ${DB_NAME} DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -86,7 +87,7 @@ AI_MODEL_NAME=${AI_MODEL_NAME}
 AI_BASE_URL=${AI_BASE_URL}
 CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS}
 UPLOAD_TMP_DIR=${APP_DIR}/data/uploads/tmp
-COURSE_PLAN_DEFAULT_TEMPLATE_PATH=${APP_DIR}/data/templates/$(basename "${TEMPLATE_FILE}")
+COURSE_PLAN_DEFAULT_TEMPLATE_PATH=${APP_DIR}/data/templates/${DEFAULT_TEMPLATE_FILE_NAME}
 OCR_ENABLED=false
 EOF
 chmod 600 /etc/nsu-maic-backend.env

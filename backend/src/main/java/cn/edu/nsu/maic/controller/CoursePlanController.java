@@ -41,6 +41,7 @@ public class CoursePlanController {
 
     private static final String EXPORT_FILENAME_HEADER = "X-Course-Plan-Filename";
     private static final String DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    private static final String DEFAULT_TEMPLATE_DISPLAY_NAME = "20XX-20XX学年第X学期《课程名称》-课程教案（模版).docx";
 
     private final Path defaultTemplatePath;
     private final AuthService authService;
@@ -335,7 +336,7 @@ public class CoursePlanController {
     }
 
     private String defaultTemplateFileName() {
-        return defaultTemplatePath.getFileName().toString();
+        return DEFAULT_TEMPLATE_DISPLAY_NAME;
     }
 
     private MultipartFile toMultipartFile(CoursePlanService.TemplateBinary value) {
