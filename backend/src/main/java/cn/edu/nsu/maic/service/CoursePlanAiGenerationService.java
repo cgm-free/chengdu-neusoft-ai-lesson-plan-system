@@ -402,7 +402,7 @@ public class CoursePlanAiGenerationService {
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. 不要直接粘贴输入原文长段；必须提炼、组织、润色成高校课堂教案表达。
                 3. introduction 写 2-3 行：复习旧课、问题/案例导入、本次任务说明。
-                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个活动类型标签，标签必须从 %s 中选择，同一节课不能重复使用同一标签；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
+                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个活动类型标签，标签必须从 %s 中选择；活动类型可按教学需要重复，但标题中的具体教学任务不能重复；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
                 5. mainContentBlocks.points 每项必须是完整扩写后的教学内容，每个 point 不少于 80 个中文字符，全部 mainContentBlocks 合计目标 1700-2000 字，底线 1500 字。
                 6. 每个主要内容块必须围绕本节课不同教学任务展开，例如概念辨析、案例分析、代码追踪、错误诊断、实验操作、课堂讨论、即时测验、项目推进；禁止每块都写同一套“讲解+案例+演示+反馈”流程。
                 7. title 禁止出现【课堂案例与互动】【演示与练习】【教师反馈与评价】这类多标签堆叠或固定套路。
@@ -621,7 +621,7 @@ public class CoursePlanAiGenerationService {
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. 不要直接粘贴输入原文长段；必须提炼、组织、润色成高校课堂教案表达。
                 3. introduction 写 2-3 行：复习旧课、问题/案例导入、本次任务说明。
-                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个活动类型标签，标签必须从 %s 中选择，同一节课不能重复使用同一标签；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
+                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个活动类型标签，标签必须从 %s 中选择；活动类型可按教学需要重复，但标题中的具体教学任务不能重复；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
                 5. mainContentBlocks.points 只写每个内容块要展开的 2-4 个要点短句，不要在本步骤扩写长文。
                 6. 每个内容块必须对应不同教学任务，禁止所有块都套用“课堂案例与互动、演示与练习、教师反馈与评价”固定组合。
                 7. title 禁止出现多组【】标签，只允许一个活动类型标签加一个具体主题标题。
@@ -1149,14 +1149,10 @@ public class CoursePlanAiGenerationService {
     }
 
     private void validateMainContentBlockDiversity(String title, List<CoursePlanDtos.MainContentBlock> blocks) {
-        LinkedHashSet<String> tags = new LinkedHashSet<>();
         LinkedHashSet<String> normalizedTitles = new LinkedHashSet<>();
         for (CoursePlanDtos.MainContentBlock block : safeList(blocks)) {
             String blockTitle = validateMainContentBlockTitle(block.title());
             String tag = extractMainActivityTag(blockTitle);
-            if (!tags.add(tag)) {
-                throw new IllegalStateException("教学设计“" + title + "”的主要内容设计活动类型重复：" + tag);
-            }
             String titleBody = blockTitle.replace("【" + tag + "】", "").trim();
             String normalizedTitle = normalize(titleBody);
             if (normalizedTitle.isBlank()) {
