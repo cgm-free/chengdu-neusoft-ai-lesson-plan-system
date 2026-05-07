@@ -189,10 +189,13 @@ export async function regenerateCoursePlan(id, { template = null, courseStandard
   return data.data
 }
 
-export async function createCoursePlanGenerationJob({ coursePlanId = null, template = null, courseStandard = null, ppts = [], references = [], payload }) {
+export async function createCoursePlanGenerationJob({ coursePlanId = null, sourceCoursePlanId = null, template = null, courseStandard = null, ppts = [], references = [], payload }) {
   const formData = new FormData()
   if (coursePlanId) {
     formData.append('coursePlanId', String(coursePlanId))
+  }
+  if (sourceCoursePlanId) {
+    formData.append('sourceCoursePlanId', String(sourceCoursePlanId))
   }
   if (template) {
     formData.append('template', template)

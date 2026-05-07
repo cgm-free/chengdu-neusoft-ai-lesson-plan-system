@@ -38,9 +38,11 @@
           :analysis="preparedAnalysis"
           :analysis-ready="analysisReady"
           :generating="generating"
+          :save-as-new-visible="true"
           @update-basic-info="updateBasicInfo"
           @update-unit-field="updateUnitField"
           @generate="handleGenerate"
+          @generate-save-as-new="handleGenerateAsNew"
           @reset="resetMaterialsState"
         />
 
@@ -246,6 +248,22 @@ async function handleAnalyze() {
 }
 
 async function handleGenerate() {
+  await submitGenerationJob({
+    coursePlanId: route.params.id,
+    sourceCoursePlanId: null,
+    successMessage: '课程教案重新生成任务已提交',
+  })
+}
+
+async function handleGenerateAsNew() {
+  await submitGenerationJob({
+    coursePlanId: null,
+    sourceCoursePlanId: route.params.id,
+    successMessage: '课程教案另存为新记录的生成任务已提交',
+  })
+}
+
+async function submitGenerationJob({ coursePlanId, sourceCoursePlanId, successMessage }) {
   if (!preparedAnalysis.value?.valid) {
     ElMessage.warning('请先完成材料解析并修正冲突项。')
     return
@@ -258,7 +276,8 @@ async function handleGenerate() {
   generationError.value = null
   try {
     const job = await createCoursePlanGenerationJob({
-      coursePlanId: route.params.id,
+      coursePlanId,
+      sourceCoursePlanId,
       template: templateFile.value,
       courseStandard: courseStandardFile.value,
       ppts: pptFiles.value,
@@ -270,7 +289,7 @@ async function handleGenerate() {
     })
     generationJob.value = job
     localStorage.setItem(generationStorageKey.value, String(job.id))
-    ElMessage.success('课程教案重新生成任务已提交')
+    ElMessage.success(successMessage)
     scheduleGenerationPoll(0)
   } catch (error) {
     const parsed = parseCoursePlanGenerationError(error, '课程教案更新失败')
@@ -422,7 +441,7 @@ function goLessons() {
 }
 
 function goEditor() {
-  router.push({ name: 'course-plan-edit', params: { id: route.params.id } })
+  router.push({ name: 'course-plan-edit', params: { id: generationJob.value?.coursePlanId || route.params.id } })
 }
 
 function clearFailedJobState() {

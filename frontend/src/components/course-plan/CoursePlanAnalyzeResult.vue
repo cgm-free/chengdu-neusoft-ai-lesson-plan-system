@@ -137,6 +137,15 @@
     <div class="actions">
       <el-button @click="emit('reset')">重新上传材料</el-button>
       <el-button
+        v-if="saveAsNewVisible"
+        size="large"
+        :loading="generating"
+        :disabled="!analysisReady"
+        @click="emit('generate-save-as-new')"
+      >
+        另存为新教案
+      </el-button>
+      <el-button
         type="primary"
         size="large"
         :loading="generating"
@@ -156,9 +165,10 @@ const props = defineProps({
   analysis: { type: Object, default: null },
   generating: { type: Boolean, default: false },
   analysisReady: { type: Boolean, default: false },
+  saveAsNewVisible: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update-basic-info', 'update-unit-field', 'generate', 'reset'])
+const emit = defineEmits(['update-basic-info', 'update-unit-field', 'generate', 'generate-save-as-new', 'reset'])
 
 const basicFields = [
   { key: 'school', label: '学校' },

@@ -44,6 +44,7 @@ public class CoursePlanGenerationJobService {
 
     public CoursePlanDtos.GenerationJobSummary submit(
             Long coursePlanId,
+            Long sourceCoursePlanId,
             MultipartFile templateFile,
             MultipartFile courseStandardFile,
             List<MultipartFile> pptFiles,
@@ -51,14 +52,14 @@ public class CoursePlanGenerationJobService {
             CoursePlanDtos.GenerateRequest request,
             UserInfo user
     ) throws IOException {
-        validateSubmit(coursePlanId, templateFile, courseStandardFile, pptFiles, referenceFiles, request, user);
+        validateSubmit(coursePlanId, sourceCoursePlanId, templateFile, courseStandardFile, pptFiles, referenceFiles, request, user);
         CoursePlanDtos.AnalysisResult analysis = request.analysis();
         String courseName = firstNonBlank(analysis.basicInfo() == null ? "" : analysis.basicInfo().courseName());
         String semester = firstNonBlank(analysis.basicInfo() == null ? "" : analysis.basicInfo().semester());
         rejectActiveJob(coursePlanId, courseName, semester, user);
 
         Long jobId = insertJob(coursePlanId, courseName, semester, request, user);
-        saveJobMaterials(jobId, templateFile, courseStandardFile, pptFiles, referenceFiles);
+        saveJobMaterials(jobId, sourceCoursePlanId, templateFile, courseStandardFile, pptFiles, referenceFiles);
         executorService.submit(() -> runJob(jobId, user));
         return getJob(jobId, user);
     }
@@ -130,6 +131,7 @@ public class CoursePlanGenerationJobService {
 
     private void validateSubmit(
             Long coursePlanId,
+            Long sourceCoursePlanId,
             MultipartFile templateFile,
             MultipartFile courseStandardFile,
             List<MultipartFile> pptFiles,
@@ -147,7 +149,16 @@ public class CoursePlanGenerationJobService {
         if (basicInfo == null || firstNonBlank(basicInfo.courseName()).isBlank()) {
             throw new IllegalArgumentException("缺少课程名称，不能启动生成任务。");
         }
+        if (coursePlanId != null && sourceCoursePlanId != null) {
+            throw new IllegalArgumentException("不能同时指定覆盖记录和另存来源记录。");
+        }
+        if (sourceCoursePlanId != null) {
+            assertSourceCoursePlanUsable(sourceCoursePlanId, user);
+        }
         if (coursePlanId == null) {
+            if (sourceCoursePlanId != null && !hasCoreUpload(courseStandardFile, pptFiles, referenceFiles)) {
+                return;
+            }
             if (templateFile == null || templateFile.isEmpty()) {
                 throw new IllegalArgumentException("生成课程教案前必须保留教案模板文件。");
             }
@@ -163,13 +174,7 @@ public class CoursePlanGenerationJobService {
             return;
         }
 
-        boolean hasCoreUpload = courseStandardFile != null && !courseStandardFile.isEmpty()
-                || !normalizeFiles(pptFiles).isEmpty()
-                || !normalizeFiles(referenceFiles).isEmpty();
-        boolean hasCompleteCoreUpload = courseStandardFile != null && !courseStandardFile.isEmpty()
-                && !normalizeFiles(pptFiles).isEmpty()
-                && !normalizeFiles(referenceFiles).isEmpty();
-        if (hasCoreUpload && !hasCompleteCoreUpload) {
+        if (hasCoreUpload(courseStandardFile, pptFiles, referenceFiles) && !hasCompleteCoreUpload(courseStandardFile, pptFiles, referenceFiles)) {
             throw new IllegalArgumentException("重新上传材料时，请同时上传课程标准、PPT/课件和教学日历。");
         }
     }
@@ -233,11 +238,16 @@ public class CoursePlanGenerationJobService {
 
     private void saveJobMaterials(
             Long jobId,
+            Long sourceCoursePlanId,
             MultipartFile templateFile,
             MultipartFile courseStandardFile,
             List<MultipartFile> pptFiles,
             List<MultipartFile> referenceFiles
     ) throws IOException {
+        if (sourceCoursePlanId != null && !hasCoreUpload(courseStandardFile, pptFiles, referenceFiles)) {
+            copyCoursePlanMaterialsToJob(jobId, sourceCoursePlanId);
+            return;
+        }
         int sortOrder = 0;
         if (templateFile != null && !templateFile.isEmpty()) {
             insertJobMaterial(jobId, "template", templateFile, sortOrder++);
@@ -261,6 +271,39 @@ public class CoursePlanGenerationJobService {
                 fileNameOf(file),
                 fileTypeOf(fileNameOf(file)),
                 file.getBytes(),
+                sortOrder
+        );
+    }
+
+    private void copyCoursePlanMaterialsToJob(Long jobId, Long sourceCoursePlanId) {
+        SourceTemplate template = loadSourceTemplate(sourceCoursePlanId);
+        int sortOrder = 0;
+        insertJobMaterial(jobId, "template", template.fileName(), fileTypeOf(template.fileName()), template.bytes(), sortOrder++);
+        List<JobMaterialBinary> materials = jdbcTemplate.query(
+                "select id, role, file_name, file_type, file_blob, sort_order from course_plan_material where course_plan_id = ? order by sort_order, id",
+                (rs, rowNum) -> new JobMaterialBinary(
+                        rs.getLong("id"),
+                        rs.getString("role"),
+                        rs.getString("file_name"),
+                        rs.getString("file_type"),
+                        rs.getBytes("file_blob"),
+                        rs.getInt("sort_order")
+                ),
+                sourceCoursePlanId
+        );
+        for (JobMaterialBinary material : materials) {
+            insertJobMaterial(jobId, material.role(), material.fileName(), material.fileType(), material.bytes(), sortOrder++);
+        }
+    }
+
+    private void insertJobMaterial(Long jobId, String role, String fileName, String fileType, byte[] bytes, int sortOrder) {
+        jdbcTemplate.update(
+                "insert into course_plan_generation_job_material (job_id, role, file_name, file_type, file_blob, sort_order) values (?, ?, ?, ?, ?, ?)",
+                jobId,
+                role,
+                fileName,
+                fileType,
+                bytes,
                 sortOrder
         );
     }
@@ -467,6 +510,78 @@ public class CoursePlanGenerationJobService {
         }
     }
 
+    private void assertSourceCoursePlanUsable(Long sourceCoursePlanId, UserInfo user) {
+        List<Long> owners = jdbcTemplate.query(
+                "select user_id from course_plan where id = ? and status <> 'deleted'",
+                (rs, rowNum) -> rs.getLong("user_id"),
+                sourceCoursePlanId
+        );
+        if (owners.isEmpty()) {
+            throw new IllegalArgumentException("另存为新教案的来源记录不存在。");
+        }
+        assertAccess(owners.get(0), user);
+        SourceTemplate template = loadSourceTemplate(sourceCoursePlanId);
+        if (template.bytes() == null || template.bytes().length == 0) {
+            throw new IllegalArgumentException("来源记录缺少教案模板文件，不能另存为新教案。");
+        }
+        Integer standardCount = materialCount(sourceCoursePlanId, "course-standard");
+        Integer pptCount = materialCount(sourceCoursePlanId, "ppt");
+        Integer referenceCount = materialCount(sourceCoursePlanId, "reference");
+        if (standardCount == null || standardCount <= 0) {
+            throw new IllegalArgumentException("来源记录缺少课程标准文件，不能另存为新教案。");
+        }
+        if (pptCount == null || pptCount <= 0) {
+            throw new IllegalArgumentException("来源记录缺少 PPT/课件文件，不能另存为新教案。");
+        }
+        if (referenceCount == null || referenceCount <= 0) {
+            throw new IllegalArgumentException("来源记录缺少教学日历文件，不能另存为新教案。");
+        }
+    }
+
+    private Integer materialCount(Long coursePlanId, String role) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from course_plan_material where course_plan_id = ? and role = ?",
+                Integer.class,
+                coursePlanId,
+                role
+        );
+    }
+
+    private SourceTemplate loadSourceTemplate(Long coursePlanId) {
+        List<SourceTemplate> templates = jdbcTemplate.query(
+                "select template_file_name, template_file from course_plan where id = ? and status <> 'deleted'",
+                (rs, rowNum) -> new SourceTemplate(
+                        firstNonBlank(rs.getString("template_file_name"), "course-plan-template.docx"),
+                        rs.getBytes("template_file")
+                ),
+                coursePlanId
+        );
+        if (templates.isEmpty()) {
+            throw new IllegalArgumentException("课程教案来源记录不存在。");
+        }
+        return templates.get(0);
+    }
+
+    private boolean hasCoreUpload(
+            MultipartFile courseStandardFile,
+            List<MultipartFile> pptFiles,
+            List<MultipartFile> referenceFiles
+    ) {
+        return courseStandardFile != null && !courseStandardFile.isEmpty()
+                || !normalizeFiles(pptFiles).isEmpty()
+                || !normalizeFiles(referenceFiles).isEmpty();
+    }
+
+    private boolean hasCompleteCoreUpload(
+            MultipartFile courseStandardFile,
+            List<MultipartFile> pptFiles,
+            List<MultipartFile> referenceFiles
+    ) {
+        return courseStandardFile != null && !courseStandardFile.isEmpty()
+                && !normalizeFiles(pptFiles).isEmpty()
+                && !normalizeFiles(referenceFiles).isEmpty();
+    }
+
     private List<MultipartFile> normalizeFiles(List<MultipartFile> files) {
         if (files == null) {
             return List.of();
@@ -531,6 +646,12 @@ public class CoursePlanGenerationJobService {
             String fileType,
             byte[] bytes,
             Integer sortOrder
+    ) {
+    }
+
+    private record SourceTemplate(
+            String fileName,
+            byte[] bytes
     ) {
     }
 }

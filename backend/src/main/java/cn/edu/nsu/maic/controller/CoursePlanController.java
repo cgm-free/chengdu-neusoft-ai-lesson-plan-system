@@ -130,6 +130,7 @@ public class CoursePlanController {
     @PostMapping(value = "/generation-jobs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<CoursePlanDtos.GenerationJobSummary> createGenerationJob(
             @RequestPart(value = "coursePlanId", required = false) String coursePlanId,
+            @RequestPart(value = "sourceCoursePlanId", required = false) String sourceCoursePlanId,
             @RequestPart(value = "template", required = false) MultipartFile template,
             @RequestPart(value = "courseStandard", required = false) MultipartFile courseStandard,
             @RequestPart(value = "ppts", required = false) List<MultipartFile> ppts,
@@ -139,9 +140,11 @@ public class CoursePlanController {
     ) throws IOException {
         UserInfo user = authService.requireUser(servletRequest);
         Long parsedCoursePlanId = parseOptionalLong(coursePlanId);
+        Long parsedSourceCoursePlanId = parseOptionalLong(sourceCoursePlanId);
         MultipartFile effectiveTemplate = parsedCoursePlanId == null ? resolveTemplate(template) : template;
         return ApiResponse.ok(coursePlanGenerationJobService.submit(
                 parsedCoursePlanId,
+                parsedSourceCoursePlanId,
                 effectiveTemplate,
                 courseStandard,
                 ppts,

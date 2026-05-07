@@ -160,7 +160,7 @@ public class CoursePlanService {
         String title = firstNonBlank(content.title(), courseName + "课程教案");
         progress.update("saving", 1, 1, "保存课程教案记录");
         jdbcTemplate.update(
-                "update course_plan set title = ?, course_name = ?, template_file_name = ?, template_file = ?, teacher_requirements = ?, analysis_json = ?, content_json = ? where id = ?",
+                "update course_plan set title = ?, course_name = ?, template_file_name = ?, template_file = ?, teacher_requirements = ?, analysis_json = ?, content_json = ?, status = 'draft' where id = ?",
                 title,
                 courseName,
                 fileNameOf(effectiveTemplate),
