@@ -15,7 +15,7 @@ maic:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS}
   ai:
     provider: deepseek
-    model-name: ${AI_MODEL_NAME:deepseek-v4-pro}
+    model-name: ${AI_MODEL_NAME:deepseek-v4-flash}
     api-key: ${AI_API_KEY}
     base-url: ${AI_BASE_URL:https://api.deepseek.com}
   ocr:

@@ -63,7 +63,7 @@ public class LessonPlanService {
                             "values (?, null, ?, ?, ?, ?, null, 0, ?)",
                     user.getId(),
                     "deepseek",
-                    "deepseek-v4-pro",
+                    "deepseek-v4-flash",
                     "generate",
                     buildFailedPromptSummary(request),
                     e.getMessage()

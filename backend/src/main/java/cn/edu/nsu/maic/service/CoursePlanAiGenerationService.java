@@ -57,7 +57,7 @@ public class CoursePlanAiGenerationService {
     @Value("${maic.ai.provider:deepseek}")
     private String provider;
 
-    @Value("${maic.ai.model-name:deepseek-v4-pro}")
+    @Value("${maic.ai.model-name:deepseek-v4-flash}")
     private String modelName;
 
     @Value("${maic.ai.api-key:}")
