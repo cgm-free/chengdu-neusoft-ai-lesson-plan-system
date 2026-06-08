@@ -10,7 +10,7 @@ public class AccountRequestDtos {
 
     public static class CreateRequest {
         @NotBlank(message = "用户名不能为空")
-        @Pattern(regexp = "^[A-Za-z0-9_\\-]{4,64}$", message = "用户名需为4到64位字母、数字、下划线或短横线")
+        @Pattern(regexp = "^[A-Za-z0-9_\\-]{3,64}$", message = "用户名需为3到64位字母、数字、下划线或短横线")
         private String username;
 
         @NotBlank(message = "教师姓名不能为空")

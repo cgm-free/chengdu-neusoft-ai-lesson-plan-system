@@ -280,8 +280,8 @@ function normalizeAccountRequestPayload() {
       return null
     }
   }
-  if (!/^[A-Za-z0-9_-]{4,64}$/.test(formValue.username.trim())) {
-    ElMessage.warning('用户名需为4到64位字母、数字、下划线或短横线')
+  if (!/^[A-Za-z0-9_-]{3,64}$/.test(formValue.username.trim())) {
+    ElMessage.warning('用户名需为3到64位字母、数字、下划线或短横线')
     return null
   }
   return {
