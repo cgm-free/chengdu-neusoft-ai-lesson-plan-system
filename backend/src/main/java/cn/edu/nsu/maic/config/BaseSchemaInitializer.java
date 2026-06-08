@@ -37,10 +37,7 @@ public class BaseSchemaInitializer implements ApplicationRunner {
                 create table if not exists teacher_account_request (
                     id bigint primary key auto_increment,
                     username varchar(64) not null,
-                    password_hash varchar(255) not null,
                     real_name varchar(64) not null,
-                    employee_no varchar(64) null,
-                    phone varchar(64) null,
                     college varchar(128) not null,
                     department varchar(128) not null,
                     major varchar(128) not null,
@@ -55,6 +52,9 @@ public class BaseSchemaInitializer implements ApplicationRunner {
                     index idx_teacher_account_request_username_status (username, status)
                 )
                 """);
+        dropColumnIfExists("teacher_account_request", "password_hash");
+        dropColumnIfExists("teacher_account_request", "employee_no");
+        dropColumnIfExists("teacher_account_request", "phone");
         jdbcTemplate.execute("""
                 create table if not exists lesson_plan (
                     id bigint primary key auto_increment,
@@ -137,6 +137,19 @@ public class BaseSchemaInitializer implements ApplicationRunner {
                 )
                 """);
         seedConfig();
+    }
+
+    private void dropColumnIfExists(String tableName, String columnName) {
+        Integer count = jdbcTemplate.queryForObject("""
+                select count(*)
+                from information_schema.columns
+                where table_schema = database()
+                  and table_name = ?
+                  and column_name = ?
+                """, Integer.class, tableName, columnName);
+        if (count != null && count > 0) {
+            jdbcTemplate.execute("alter table `" + tableName + "` drop column `" + columnName + "`");
+        }
     }
 
     private void seedConfig() {

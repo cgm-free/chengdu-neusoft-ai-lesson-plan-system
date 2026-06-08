@@ -13,19 +13,9 @@ public class AccountRequestDtos {
         @Pattern(regexp = "^[A-Za-z0-9_\\-]{4,64}$", message = "用户名需为4到64位字母、数字、下划线或短横线")
         private String username;
 
-        @NotBlank(message = "密码不能为空")
-        @Size(min = 6, max = 72, message = "密码长度必须为6到72个字符")
-        private String password;
-
         @NotBlank(message = "教师姓名不能为空")
         @Size(max = 64, message = "教师姓名不能超过64个字符")
         private String realName;
-
-        @Size(max = 64, message = "工号不能超过64个字符")
-        private String employeeNo;
-
-        @Size(max = 64, message = "联系电话不能超过64个字符")
-        private String phone;
 
         @NotBlank(message = "学院不能为空")
         @Size(max = 128, message = "学院不能超过128个字符")
@@ -50,36 +40,12 @@ public class AccountRequestDtos {
             this.username = username;
         }
 
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
-        }
-
         public String getRealName() {
             return realName;
         }
 
         public void setRealName(String realName) {
             this.realName = realName;
-        }
-
-        public String getEmployeeNo() {
-            return employeeNo;
-        }
-
-        public void setEmployeeNo(String employeeNo) {
-            this.employeeNo = employeeNo;
-        }
-
-        public String getPhone() {
-            return phone;
-        }
-
-        public void setPhone(String phone) {
-            this.phone = phone;
         }
 
         public String getCollege() {
@@ -128,12 +94,40 @@ public class AccountRequestDtos {
         }
     }
 
+    public static class ApprovalResult {
+        private AdminUserDtos.Summary user;
+        private Summary request;
+        private String initialPassword;
+
+        public AdminUserDtos.Summary getUser() {
+            return user;
+        }
+
+        public void setUser(AdminUserDtos.Summary user) {
+            this.user = user;
+        }
+
+        public Summary getRequest() {
+            return request;
+        }
+
+        public void setRequest(Summary request) {
+            this.request = request;
+        }
+
+        public String getInitialPassword() {
+            return initialPassword;
+        }
+
+        public void setInitialPassword(String initialPassword) {
+            this.initialPassword = initialPassword;
+        }
+    }
+
     public static class Summary {
         private Long id;
         private String username;
         private String realName;
-        private String employeeNo;
-        private String phone;
         private String college;
         private String department;
         private String major;
@@ -167,22 +161,6 @@ public class AccountRequestDtos {
 
         public void setRealName(String realName) {
             this.realName = realName;
-        }
-
-        public String getEmployeeNo() {
-            return employeeNo;
-        }
-
-        public void setEmployeeNo(String employeeNo) {
-            this.employeeNo = employeeNo;
-        }
-
-        public String getPhone() {
-            return phone;
-        }
-
-        public void setPhone(String phone) {
-            this.phone = phone;
         }
 
         public String getCollege() {

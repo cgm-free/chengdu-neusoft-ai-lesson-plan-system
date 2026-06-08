@@ -1,7 +1,6 @@
 package cn.edu.nsu.maic.controller;
 
 import cn.edu.nsu.maic.dto.AccountRequestDtos;
-import cn.edu.nsu.maic.dto.AdminUserDtos;
 import cn.edu.nsu.maic.dto.ApiResponse;
 import cn.edu.nsu.maic.dto.UserInfo;
 import cn.edu.nsu.maic.service.AccountRequestService;
@@ -41,9 +40,9 @@ public class AccountRequestController {
     }
 
     @PostMapping("/api/admin/account-requests/{id}/approve")
-    public ApiResponse<AdminUserDtos.Summary> approve(@PathVariable Long id,
-                                                      @Valid @RequestBody(required = false) AccountRequestDtos.ReviewRequest payload,
-                                                      HttpServletRequest request) {
+    public ApiResponse<AccountRequestDtos.ApprovalResult> approve(@PathVariable Long id,
+                                                                  @Valid @RequestBody(required = false) AccountRequestDtos.ReviewRequest payload,
+                                                                  HttpServletRequest request) {
         UserInfo operator = authService.requireAdmin(request);
         return ApiResponse.ok(accountRequestService.approve(id, payload, operator));
     }

@@ -81,12 +81,6 @@
           <el-form-item label="教师姓名">
             <el-input v-model="accountRequestForm.realName" maxlength="64" />
           </el-form-item>
-          <el-form-item label="工号/手机号">
-            <el-input v-model="accountRequestForm.employeeNo" maxlength="64" />
-          </el-form-item>
-          <el-form-item label="联系电话">
-            <el-input v-model="accountRequestForm.phone" maxlength="64" />
-          </el-form-item>
           <el-form-item label="课程名称">
             <el-input v-model="accountRequestForm.courseName" maxlength="255" />
           </el-form-item>
@@ -99,18 +93,18 @@
             </el-select>
           </el-form-item>
           <el-form-item label="专业">
-            <el-select v-model="accountRequestForm.major">
+            <el-select
+              v-model="accountRequestForm.major"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="请选择或输入完整专业名"
+            >
               <el-option v-for="item in majorOptions" :key="item" :label="item" :value="item" />
             </el-select>
           </el-form-item>
           <el-form-item label="申请用户名">
             <el-input v-model="accountRequestForm.username" maxlength="64" />
-          </el-form-item>
-          <el-form-item label="登录密码">
-            <el-input v-model="accountRequestForm.password" type="password" show-password maxlength="72" />
-          </el-form-item>
-          <el-form-item label="确认密码">
-            <el-input v-model="accountRequestForm.confirmPassword" type="password" show-password maxlength="72" />
           </el-form-item>
         </div>
       </el-form>
@@ -162,7 +156,7 @@ const departmentOptions = [
   },
   {
     name: '大数据工程系',
-    majors: ['大数据管理与应用', '数据科学与大数据技术', '数据科学与大数据技术（中外合作办学）'],
+    majors: ['大数据管理与应用', '数据科学与大数据技术', '数据科学与大数据技术[中外合作办学]'],
   },
   {
     name: '电子工程系',
@@ -255,11 +249,7 @@ async function handleSubmit() {
 function createAccountRequestForm() {
   return {
     username: '',
-    password: '',
-    confirmPassword: '',
     realName: '',
-    employeeNo: '',
-    phone: '',
     college: '智能科学与工程学院',
     department: '智能工程系',
     major: '人工智能',
@@ -280,12 +270,9 @@ function normalizeAccountRequestPayload() {
   const formValue = accountRequestForm.value
   const requiredFields = [
     ['realName', '请输入教师姓名'],
-    ['employeeNo', '请输入工号或手机号'],
-    ['phone', '请输入联系电话'],
     ['department', '请选择系部'],
     ['major', '请选择专业'],
     ['username', '请输入申请用户名'],
-    ['password', '请输入登录密码'],
   ]
   for (const [field, message] of requiredFields) {
     if (!String(formValue[field] || '').trim()) {
@@ -297,23 +284,12 @@ function normalizeAccountRequestPayload() {
     ElMessage.warning('用户名需为4到64位字母、数字、下划线或短横线')
     return null
   }
-  if (formValue.password.length < 6) {
-    ElMessage.warning('密码至少6个字符')
-    return null
-  }
-  if (formValue.password !== formValue.confirmPassword) {
-    ElMessage.warning('两次输入的密码不一致')
-    return null
-  }
   return {
     username: formValue.username.trim(),
-    password: formValue.password,
     realName: formValue.realName.trim(),
-    employeeNo: formValue.employeeNo.trim(),
-    phone: formValue.phone.trim(),
     college: formValue.college,
     department: formValue.department,
-    major: formValue.major,
+    major: formValue.major.trim(),
     courseName: formValue.courseName.trim(),
   }
 }

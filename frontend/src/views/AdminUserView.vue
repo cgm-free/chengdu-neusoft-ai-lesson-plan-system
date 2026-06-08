@@ -38,8 +38,6 @@
             <el-table v-loading="requestLoading" :data="filteredRequests" empty-text="暂无账号申请">
               <el-table-column prop="realName" label="教师姓名" min-width="120" />
               <el-table-column prop="username" label="申请用户名" min-width="130" />
-              <el-table-column prop="employeeNo" label="工号/手机号" min-width="130" />
-              <el-table-column prop="phone" label="联系电话" min-width="130" />
               <el-table-column prop="department" label="系部" min-width="130" />
               <el-table-column prop="major" label="专业" min-width="170" />
               <el-table-column prop="courseName" label="课程名称" min-width="160" />
@@ -239,8 +237,6 @@ const filteredRequests = computed(() => {
     const haystack = [
       item.realName,
       item.username,
-      item.employeeNo,
-      item.phone,
       item.college,
       item.department,
       item.major,
@@ -383,9 +379,16 @@ async function approveRequest(row) {
     type: 'warning',
   })
   try {
-    await approveAccountRequest(row.id, { reviewNote: '审核通过' })
-    ElMessage.success('账号申请已通过，教师账号已创建')
+    const result = await approveAccountRequest(row.id, { reviewNote: '审核通过' })
     await Promise.all([loadRequests(), loadUsers()])
+    await ElMessageBox.alert(
+      `教师账号“${result.user?.username || row.username}”已创建。<br />初始密码：<strong>${result.initialPassword}</strong><br />请记录后转交老师使用。`,
+      '账号已创建',
+      {
+        confirmButtonText: '我已记录',
+        dangerouslyUseHTMLString: true,
+      },
+    )
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '通过申请失败')
   }
