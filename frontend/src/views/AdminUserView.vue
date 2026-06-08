@@ -77,7 +77,10 @@
                 </el-select>
                 <el-button :loading="loading" @click="loadUsers">刷新</el-button>
               </div>
-              <el-button type="primary" @click="openCreateDialog">新建用户</el-button>
+              <div class="toolbar-actions">
+                <el-button @click="exportAllUsersExcel">导出 Excel</el-button>
+                <el-button type="primary" @click="openCreateDialog">新建用户</el-button>
+              </div>
             </div>
 
             <el-table v-loading="loading" :data="filteredUsers" empty-text="暂无用户">
@@ -192,7 +195,7 @@
       </div>
       <template #footer>
         <el-button @click="approvedAccountDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="exportApprovedAccountExcel">导出 Excel</el-button>
+        <el-button type="primary" @click="exportApprovedAccountExcel">导出交付单</el-button>
       </template>
     </el-dialog>
   </div>
@@ -438,12 +441,43 @@ function exportApprovedAccountExcel() {
   const tableRows = rows
     .map(([label, value]) => `<tr><th>${escapeExcelCell(label)}</th><td>${escapeExcelCell(value)}</td></tr>`)
     .join('')
+  downloadExcelTable(tableRows, `教师账号_${safeFileName(item.realName || item.username)}.xls`)
+}
+
+function exportAllUsersExcel() {
+  if (!users.value.length) {
+    ElMessage.warning('暂无用户可导出')
+    return
+  }
+  const header = ['ID', '账号', '姓名', '角色', '院系', '状态', '最后登录', '创建时间', '更新时间']
+  const body = users.value.map((item) => [
+    item.id,
+    item.username,
+    item.realName,
+    roleLabel(item.role),
+    item.department,
+    item.enabled ? '启用' : '禁用',
+    formatTime(item.lastLoginAt),
+    formatTime(item.createdAt),
+    formatTime(item.updatedAt),
+  ])
+  const tableRows = [header, ...body]
+    .map((row, index) => {
+      const tag = index === 0 ? 'th' : 'td'
+      const cells = row.map((value) => `<${tag}>${escapeExcelCell(value)}</${tag}>`).join('')
+      return `<tr>${cells}</tr>`
+    })
+    .join('')
+  downloadExcelTable(tableRows, `系统用户_${formatDateForFile(new Date())}.xls`)
+}
+
+function downloadExcelTable(tableRows, fileName) {
   const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1">${tableRows}</table></body></html>`
   const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `教师账号_${safeFileName(item.realName || item.username)}.xls`
+  link.download = fileName
   document.body.appendChild(link)
   link.click()
   link.remove()
@@ -460,6 +494,16 @@ function escapeExcelCell(value) {
 
 function safeFileName(value) {
   return String(value || '教师账号').replace(/[\\/:*?"<>|]/g, '_')
+}
+
+function formatDateForFile(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${year}${month}${day}_${hour}${minute}`
 }
 
 async function rejectRequest(row) {
@@ -622,6 +666,13 @@ function goAdminUsers() {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: start;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .request-filter-bar {
