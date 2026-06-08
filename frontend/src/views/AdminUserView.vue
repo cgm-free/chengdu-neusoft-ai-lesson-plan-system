@@ -133,7 +133,10 @@
           <el-input v-model="userForm.username" maxlength="64" />
         </el-form-item>
         <el-form-item v-if="dialogMode === 'create'" label="初始密码">
-          <el-input v-model="userForm.password" type="password" show-password maxlength="72" />
+          <div class="password-field-row">
+            <el-input v-model="userForm.password" type="password" show-password maxlength="72" />
+            <el-button @click="userForm.password = generatePassword()">生成</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="userForm.realName" maxlength="64" />
@@ -168,7 +171,10 @@
           <el-input :model-value="passwordTargetLabel" disabled />
         </el-form-item>
         <el-form-item label="新密码">
-          <el-input v-model="passwordForm.password" type="password" show-password maxlength="72" />
+          <div class="password-field-row">
+            <el-input v-model="passwordForm.password" type="password" show-password maxlength="72" />
+            <el-button @click="passwordForm.password = generatePassword()">生成</el-button>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -191,7 +197,7 @@
           <span>初始密码</span>
           <strong>{{ approvedAccount.initialPassword }}</strong>
         </div>
-        <p>初始密码仅在本次审核通过后显示，请记录或导出后转交老师使用。</p>
+        <p>{{ approvedAccount.note }}</p>
       </div>
       <template #footer>
         <el-button @click="approvedAccountDialogVisible = false">关闭</el-button>
@@ -343,8 +349,19 @@ async function saveUser() {
   saving.value = true
   try {
     if (dialogMode.value === 'create') {
-      await createAdminUser(payload)
+      const created = await createAdminUser(payload)
       ElMessage.success('用户已创建')
+      approvedAccount.value = buildCredentialRecord({
+        user: created,
+        fallback: {
+          username: payload.username,
+          realName: payload.realName,
+          department: payload.department,
+        },
+        password: payload.password,
+        note: '初始密码仅在本次创建后显示，请记录或导出后转交老师使用。',
+      })
+      approvedAccountDialogVisible.value = true
     } else {
       await updateAdminUser(editingUserId.value, payload)
       ElMessage.success('用户已更新')
@@ -366,9 +383,16 @@ async function savePassword() {
   }
   savingPassword.value = true
   try {
-    await resetAdminUserPassword(passwordTarget.value.id, { password })
+    const updated = await resetAdminUserPassword(passwordTarget.value.id, { password })
     passwordDialogVisible.value = false
     ElMessage.success('密码已重置')
+    approvedAccount.value = buildCredentialRecord({
+      user: updated,
+      fallback: passwordTarget.value,
+      password,
+      note: '新密码仅在本次重置后显示，请记录或导出后转交老师使用。',
+    })
+    approvedAccountDialogVisible.value = true
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '重置密码失败')
   } finally {
@@ -408,17 +432,12 @@ async function approveRequest(row) {
   try {
     const result = await approveAccountRequest(row.id, { reviewNote: '审核通过' })
     await Promise.all([loadRequests(), loadUsers()])
-    approvedAccount.value = {
-      username: result.user?.username || row.username,
-      realName: result.user?.realName || row.realName,
-      department: result.user?.department || [row.college, row.department, row.major].filter(Boolean).join(' / '),
-      initialPassword: result.initialPassword,
-      college: row.college || '',
-      requestDepartment: row.department || '',
-      major: row.major || '',
-      courseName: row.courseName || '',
-      createdAt: formatTime(new Date().toISOString()),
-    }
+    approvedAccount.value = buildCredentialRecord({
+      user: result.user,
+      fallback: row,
+      password: result.initialPassword,
+      note: '初始密码仅在本次审核通过后显示，请记录或导出后转交老师使用。',
+    })
     approvedAccountDialogVisible.value = true
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '通过申请失败')
@@ -442,6 +461,47 @@ function exportApprovedAccountExcel() {
     .map(([label, value]) => `<tr><th>${escapeExcelCell(label)}</th><td>${escapeExcelCell(value)}</td></tr>`)
     .join('')
   downloadExcelTable(tableRows, `教师账号_${safeFileName(item.realName || item.username)}.xls`)
+}
+
+function buildCredentialRecord({ user: createdUser, fallback, password, note }) {
+  const departmentParts = splitDepartment(createdUser?.department || fallback?.department || '')
+  return {
+    username: createdUser?.username || fallback?.username || '',
+    realName: createdUser?.realName || fallback?.realName || '',
+    department: createdUser?.department || fallback?.department || '',
+    initialPassword: password || '',
+    college: fallback?.college || departmentParts[0] || '',
+    requestDepartment: fallback?.requestDepartment || departmentParts[1] || fallback?.department || '',
+    major: fallback?.major || departmentParts[2] || '',
+    courseName: fallback?.courseName || '',
+    createdAt: formatTime(new Date().toISOString()),
+    note,
+  }
+}
+
+function splitDepartment(value) {
+  return String(value || '')
+    .split('/')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function generatePassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  let password = ''
+  const cryptoApi = window.crypto || window.msCrypto
+  if (cryptoApi?.getRandomValues) {
+    const values = new Uint32Array(12)
+    cryptoApi.getRandomValues(values)
+    values.forEach((value) => {
+      password += chars[value % chars.length]
+    })
+    return password
+  }
+  for (let index = 0; index < 12; index += 1) {
+    password += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return password
 }
 
 function exportAllUsersExcel() {
@@ -694,6 +754,12 @@ function goAdminUsers() {
   margin: 4px 0 0;
   color: #64748b;
   line-height: 1.6;
+}
+
+.password-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .credential-row {
