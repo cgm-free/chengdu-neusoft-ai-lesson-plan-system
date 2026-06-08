@@ -24,6 +24,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (path.equals("/api/health") || path.equals("/api/auth/login")) {
             return true;
         }
+        if (path.equals("/api/account-requests") && "POST".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
         if (authService.currentUser(authService.extractToken(request)) != null) {
             return true;
         }
@@ -33,4 +36,3 @@ public class AuthInterceptor implements HandlerInterceptor {
         return false;
     }
 }
-

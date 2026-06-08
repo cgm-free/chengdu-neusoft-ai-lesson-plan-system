@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 
@@ -70,6 +71,15 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleIOException(IOException exception) {
         log.warn("File parsing failed", exception);
         return ApiResponse.fail("文件解析失败：" + readableMessage(exception));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public org.springframework.http.ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException exception) {
+        log.warn("Request rejected: {}", exception.getReason());
+        String message = exception.getReason() == null || exception.getReason().isBlank()
+                ? exception.getStatusCode().toString()
+                : exception.getReason();
+        return org.springframework.http.ResponseEntity.status(exception.getStatusCode()).body(ApiResponse.fail(message));
     }
 
     @ExceptionHandler(Exception.class)

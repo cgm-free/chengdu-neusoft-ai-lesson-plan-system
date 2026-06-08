@@ -7,6 +7,7 @@
       @home="goHome"
       @new="goHome"
       @lessons="goLessons"
+      @admin="goAdminUsers"
       @logout="handleLogout"
     />
 
@@ -438,6 +439,10 @@ function goHome() {
 
 function goLessons() {
   router.push({ name: 'lesson-list' })
+}
+
+function goAdminUsers() {
+  router.push({ name: 'admin-users' })
 }
 
 function goEditor() {

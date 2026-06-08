@@ -18,6 +18,7 @@ http.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('nsu_maic_token')
+      localStorage.removeItem('nsu_maic_user_role')
       window.dispatchEvent(new Event('nsu-auth-expired'))
     }
     return Promise.reject(error)
@@ -36,6 +37,57 @@ export async function logout() {
 
 export async function getCurrentUser() {
   const { data } = await http.get('/auth/me')
+  return data.data
+}
+
+export async function submitAccountRequest(payload) {
+  const { data } = await http.post('/account-requests', payload)
+  return data.data
+}
+
+export async function getAccountRequests(status = '') {
+  const params = status ? { status } : undefined
+  const { data } = await http.get('/admin/account-requests', { params })
+  return data.data
+}
+
+export async function approveAccountRequest(id, payload = {}) {
+  const { data } = await http.post(`/admin/account-requests/${id}/approve`, payload)
+  return data.data
+}
+
+export async function rejectAccountRequest(id, payload = {}) {
+  const { data } = await http.post(`/admin/account-requests/${id}/reject`, payload)
+  return data.data
+}
+
+export async function getAdminUsers() {
+  const { data } = await http.get('/admin/users')
+  return data.data
+}
+
+export async function createAdminUser(payload) {
+  const { data } = await http.post('/admin/users', payload)
+  return data.data
+}
+
+export async function updateAdminUser(id, payload) {
+  const { data } = await http.put(`/admin/users/${id}`, payload)
+  return data.data
+}
+
+export async function resetAdminUserPassword(id, payload) {
+  const { data } = await http.patch(`/admin/users/${id}/password`, payload)
+  return data.data
+}
+
+export async function updateAdminUserEnabled(id, payload) {
+  const { data } = await http.patch(`/admin/users/${id}/enabled`, payload)
+  return data.data
+}
+
+export async function disableAdminUser(id) {
+  const { data } = await http.delete(`/admin/users/${id}`)
   return data.data
 }
 

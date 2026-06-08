@@ -19,6 +19,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 function handleAuthExpired() {
+  localStorage.removeItem('nsu_maic_user_role')
   const currentRoute = router.currentRoute.value
   if (currentRoute.name === 'login') {
     return

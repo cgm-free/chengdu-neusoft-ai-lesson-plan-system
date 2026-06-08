@@ -27,11 +27,13 @@ export function useAuthenticatedPage(onAuthorized) {
 
     try {
       user.value = await getCurrentUser()
+      localStorage.setItem('nsu_maic_user_role', user.value?.role || '')
       if (typeof onAuthorized === 'function') {
         await onAuthorized(user.value)
       }
     } catch {
       localStorage.removeItem('nsu_maic_token')
+      localStorage.removeItem('nsu_maic_user_role')
       user.value = null
       await redirectToLogin()
     } finally {
@@ -46,12 +48,14 @@ export function useAuthenticatedPage(onAuthorized) {
       // ignore
     }
     localStorage.removeItem('nsu_maic_token')
+    localStorage.removeItem('nsu_maic_user_role')
     user.value = null
     await router.replace({ name: 'login' })
   }
 
   async function handleAuthExpired() {
     localStorage.removeItem('nsu_maic_token')
+    localStorage.removeItem('nsu_maic_user_role')
     authChecking.value = false
     user.value = null
     await redirectToLogin()

@@ -19,11 +19,25 @@
 
         <section v-loading="checkingSession" class="login-card">
           <div class="login-card-head">
-            <h2>欢迎登录</h2>
-            <p>登录后可查看、打开并导出教案</p>
+            <h2>{{ roleCopy.title }}</h2>
+            <p>{{ roleCopy.description }}</p>
           </div>
 
           <el-form :model="form" label-position="top" @keyup.enter="handleSubmit">
+            <div class="role-switch" aria-label="登录身份">
+              <button
+                v-for="item in roleOptions"
+                :key="item.value"
+                type="button"
+                class="role-switch-item"
+                :class="{ active: form.role === item.value }"
+                @click="form.role = item.value"
+              >
+                <strong>{{ item.label }}</strong>
+                <span>{{ item.caption }}</span>
+              </button>
+            </div>
+
             <el-form-item label="用户名">
               <el-input v-model="form.username" :prefix-icon="User" />
             </el-form-item>
@@ -39,7 +53,7 @@
 
             <div class="login-card-meta">
               <el-checkbox v-model="rememberUser">记住我</el-checkbox>
-              <span class="login-meta-note">如需重置账号，请联系管理员</span>
+              <button type="button" class="login-meta-action" @click="openAccountRequestDialog">申请教师账号</button>
             </div>
 
             <el-button
@@ -60,6 +74,51 @@
         <span>安全登录，保护您的数据</span>
       </footer>
     </section>
+
+    <el-dialog v-model="accountRequestVisible" title="申请教师账号" width="680px" class="account-request-dialog">
+      <el-form :model="accountRequestForm" label-position="top">
+        <div class="request-form-grid">
+          <el-form-item label="教师姓名">
+            <el-input v-model="accountRequestForm.realName" maxlength="64" />
+          </el-form-item>
+          <el-form-item label="工号/手机号">
+            <el-input v-model="accountRequestForm.employeeNo" maxlength="64" />
+          </el-form-item>
+          <el-form-item label="联系电话">
+            <el-input v-model="accountRequestForm.phone" maxlength="64" />
+          </el-form-item>
+          <el-form-item label="课程名称">
+            <el-input v-model="accountRequestForm.courseName" maxlength="255" />
+          </el-form-item>
+          <el-form-item label="学院">
+            <el-input v-model="accountRequestForm.college" disabled />
+          </el-form-item>
+          <el-form-item label="系部">
+            <el-select v-model="accountRequestForm.department" @change="handleRequestDepartmentChange">
+              <el-option v-for="item in departmentOptions" :key="item.name" :label="item.name" :value="item.name" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="专业">
+            <el-select v-model="accountRequestForm.major">
+              <el-option v-for="item in majorOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="申请用户名">
+            <el-input v-model="accountRequestForm.username" maxlength="64" />
+          </el-form-item>
+          <el-form-item label="登录密码">
+            <el-input v-model="accountRequestForm.password" type="password" show-password maxlength="72" />
+          </el-form-item>
+          <el-form-item label="确认密码">
+            <el-input v-model="accountRequestForm.confirmPassword" type="password" show-password maxlength="72" />
+          </el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="accountRequestVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingAccountRequest" @click="submitTeacherAccountRequest">提交申请</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -68,36 +127,89 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
-import { getCurrentUser, login } from '../api/http'
+import { getCurrentUser, login, submitAccountRequest } from '../api/http'
 import loginIllustration from '../assets/login-illustration.png'
 import nsuBrand from '../assets/nsu-brand.png'
 
 const router = useRouter()
 const route = useRoute()
 const REMEMBERED_USERNAME_KEY = 'nsu_maic_remembered_username'
+const REMEMBERED_ROLE_KEY = 'nsu_maic_remembered_role'
 const REMEMBERED_PASSWORD_KEY = 'nsu_maic_remembered_password'
 const LEGACY_USERNAME_KEY = 'nsu_maic_last_username'
 
 const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY)
   || localStorage.getItem(LEGACY_USERNAME_KEY)
   || ''
-const rememberedPassword = localStorage.getItem(REMEMBERED_PASSWORD_KEY) || ''
+const rememberedRole = localStorage.getItem(REMEMBERED_ROLE_KEY) || 'teacher'
+localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
 
 const form = ref({
   username: rememberedUsername,
-  password: rememberedPassword,
+  password: '',
+  role: ['admin', 'teacher'].includes(rememberedRole) ? rememberedRole : 'teacher',
 })
 const loggingIn = ref(false)
 const checkingSession = ref(Boolean(localStorage.getItem('nsu_maic_token')))
-const rememberUser = ref(Boolean(rememberedUsername || rememberedPassword))
+const rememberUser = ref(Boolean(rememberedUsername || localStorage.getItem(REMEMBERED_ROLE_KEY)))
+const accountRequestVisible = ref(false)
+const submittingAccountRequest = ref(false)
+
+const departmentOptions = [
+  {
+    name: '智能工程系',
+    majors: ['人工智能', '智能科学与技术'],
+  },
+  {
+    name: '大数据工程系',
+    majors: ['大数据管理与应用', '数据科学与大数据技术', '数据科学与大数据技术（中外合作办学）'],
+  },
+  {
+    name: '电子工程系',
+    majors: ['信息工程', '机器人工程'],
+  },
+]
+
+const accountRequestForm = ref(createAccountRequestForm())
+
+const roleOptions = [
+  { value: 'teacher', label: '教师登录', caption: '备课、生成与导出教案' },
+  { value: 'admin', label: '管理员登录', caption: '管理教师账号与系统数据' },
+]
+
+const majorOptions = computed(() => {
+  const matched = departmentOptions.find((item) => item.name === accountRequestForm.value.department)
+  return matched?.majors || []
+})
+
+const roleCopy = computed(() => {
+  if (form.value.role === 'admin') {
+    return {
+      title: '管理员登录',
+      description: '登录后进入用户管理，可新建、禁用和重置教师账号。',
+    }
+  }
+  return {
+    title: '教师登录',
+    description: '登录后可查看、打开并导出自己的课程教案。',
+  }
+})
 
 const redirectTarget = computed(() => {
   const target = String(route.query.redirect || '').trim()
   if (!target || target === '/login' || !target.startsWith('/')) {
-    return '/new'
+    return ''
   }
   return target
 })
+
+function homeForRole(role) {
+  return role === 'admin' ? '/admin/users' : '/new'
+}
+
+function postLoginTarget(user) {
+  return redirectTarget.value || homeForRole(user?.role)
+}
 
 onMounted(async () => {
   const token = localStorage.getItem('nsu_maic_token')
@@ -106,10 +218,12 @@ onMounted(async () => {
     return
   }
   try {
-    await getCurrentUser()
-    await router.replace(redirectTarget.value)
+    const user = await getCurrentUser()
+    localStorage.setItem('nsu_maic_user_role', user?.role || '')
+    await router.replace(postLoginTarget(user))
   } catch {
     localStorage.removeItem('nsu_maic_token')
+    localStorage.removeItem('nsu_maic_user_role')
     checkingSession.value = false
   }
 })
@@ -119,20 +233,103 @@ async function handleSubmit() {
   try {
     const result = await login(form.value)
     localStorage.setItem('nsu_maic_token', result.token)
+    localStorage.setItem('nsu_maic_user_role', result.user?.role || '')
     if (rememberUser.value) {
       localStorage.setItem(REMEMBERED_USERNAME_KEY, form.value.username)
-      localStorage.setItem(REMEMBERED_PASSWORD_KEY, form.value.password)
+      localStorage.setItem(REMEMBERED_ROLE_KEY, form.value.role)
     } else {
       localStorage.removeItem(REMEMBERED_USERNAME_KEY)
-      localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
+      localStorage.removeItem(REMEMBERED_ROLE_KEY)
     }
+    localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
     localStorage.removeItem(LEGACY_USERNAME_KEY)
     ElMessage.success('登录成功')
-    await router.replace(redirectTarget.value)
+    await router.replace(postLoginTarget(result.user))
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '登录失败')
   } finally {
     loggingIn.value = false
+  }
+}
+
+function createAccountRequestForm() {
+  return {
+    username: '',
+    password: '',
+    confirmPassword: '',
+    realName: '',
+    employeeNo: '',
+    phone: '',
+    college: '智能科学与工程学院',
+    department: '智能工程系',
+    major: '人工智能',
+    courseName: '',
+  }
+}
+
+function openAccountRequestDialog() {
+  accountRequestForm.value = createAccountRequestForm()
+  accountRequestVisible.value = true
+}
+
+function handleRequestDepartmentChange() {
+  accountRequestForm.value.major = majorOptions.value[0] || ''
+}
+
+function normalizeAccountRequestPayload() {
+  const formValue = accountRequestForm.value
+  const requiredFields = [
+    ['realName', '请输入教师姓名'],
+    ['employeeNo', '请输入工号或手机号'],
+    ['phone', '请输入联系电话'],
+    ['department', '请选择系部'],
+    ['major', '请选择专业'],
+    ['username', '请输入申请用户名'],
+    ['password', '请输入登录密码'],
+  ]
+  for (const [field, message] of requiredFields) {
+    if (!String(formValue[field] || '').trim()) {
+      ElMessage.warning(message)
+      return null
+    }
+  }
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(formValue.username.trim())) {
+    ElMessage.warning('用户名需为4到64位字母、数字、下划线或短横线')
+    return null
+  }
+  if (formValue.password.length < 6) {
+    ElMessage.warning('密码至少6个字符')
+    return null
+  }
+  if (formValue.password !== formValue.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
+    return null
+  }
+  return {
+    username: formValue.username.trim(),
+    password: formValue.password,
+    realName: formValue.realName.trim(),
+    employeeNo: formValue.employeeNo.trim(),
+    phone: formValue.phone.trim(),
+    college: formValue.college,
+    department: formValue.department,
+    major: formValue.major,
+    courseName: formValue.courseName.trim(),
+  }
+}
+
+async function submitTeacherAccountRequest() {
+  const payload = normalizeAccountRequestPayload()
+  if (!payload) return
+  submittingAccountRequest.value = true
+  try {
+    await submitAccountRequest(payload)
+    accountRequestVisible.value = false
+    ElMessage.success('账号申请已提交，请等待管理员审核')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '提交账号申请失败')
+  } finally {
+    submittingAccountRequest.value = false
   }
 }
 </script>
@@ -238,6 +435,51 @@ async function handleSubmit() {
   font-size: 16px;
 }
 
+.role-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.role-switch-item {
+  min-width: 0;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid #d7e4fb;
+  border-radius: 14px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  color: #395577;
+  background: #f8fbff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.role-switch-item strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.role-switch-item span {
+  color: #70829b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.role-switch-item.active {
+  border-color: #1d6ff2;
+  color: #0f4fb8;
+  background: #eef6ff;
+  box-shadow: inset 0 0 0 1px rgba(29, 111, 242, 0.18), 0 10px 20px rgba(37, 99, 235, 0.08);
+}
+
+.role-switch-item.active span {
+  color: #2e65b6;
+}
+
 .login-card-meta {
   display: flex;
   align-items: center;
@@ -246,9 +488,24 @@ async function handleSubmit() {
   margin: 6px 0 28px;
 }
 
-.login-meta-note {
+.login-meta-action {
+  padding: 0;
+  border: 0;
   color: #3b82f6;
+  background: transparent;
   font-size: 14px;
+  cursor: pointer;
+}
+
+.login-meta-action:hover {
+  color: #0f5ad3;
+  text-decoration: underline;
+}
+
+.request-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
 }
 
 .login-submit {
@@ -360,6 +617,14 @@ async function handleSubmit() {
   .login-card-meta {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .role-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .request-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

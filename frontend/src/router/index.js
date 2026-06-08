@@ -5,18 +5,30 @@ import CoursePlanEditorView from '../views/CoursePlanEditorView.vue'
 import CoursePlanMaterialsView from '../views/CoursePlanMaterialsView.vue'
 import LessonListView from '../views/LessonListView.vue'
 import LoginView from '../views/LoginView.vue'
+import AdminUserView from '../views/AdminUserView.vue'
+import { getCurrentUser } from '../api/http'
+
+function authenticatedHome() {
+  return localStorage.getItem('nsu_maic_user_role') === 'admin' ? '/admin/users' : '/new'
+}
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
       path: '/',
-      redirect: () => (localStorage.getItem('nsu_maic_token') ? '/new' : '/login'),
+      redirect: () => (localStorage.getItem('nsu_maic_token') ? authenticatedHome() : '/login'),
     },
     {
       path: '/login',
       name: 'login',
       component: LoginView,
+    },
+    {
+      path: '/admin/users',
+      name: 'admin-users',
+      component: AdminUserView,
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/new',
@@ -60,16 +72,30 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: () => (localStorage.getItem('nsu_maic_token') ? '/new' : '/login'),
+      redirect: () => (localStorage.getItem('nsu_maic_token') ? authenticatedHome() : '/login'),
     },
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (!to.meta?.requiresAuth) {
     return true
   }
   if (localStorage.getItem('nsu_maic_token')) {
+    if (to.meta?.requiresAdmin) {
+      try {
+        const user = await getCurrentUser()
+        localStorage.setItem('nsu_maic_user_role', user?.role || '')
+        if (user?.role === 'admin') {
+          return true
+        }
+        return { name: 'course-plan-new' }
+      } catch {
+        localStorage.removeItem('nsu_maic_token')
+        localStorage.removeItem('nsu_maic_user_role')
+        return { name: 'login', query: { redirect: to.fullPath } }
+      }
+    }
     return true
   }
   return {

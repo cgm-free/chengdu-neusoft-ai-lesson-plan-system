@@ -23,6 +23,7 @@
         @home="switchModule('wizard')"
         @new="switchModule('wizard')"
         @lessons="switchModule('lessons')"
+        @admin="goAdminUsers"
         @logout="handleLogout"
       />
 
@@ -400,8 +401,8 @@
                   <el-button size="small" type="primary" plain round @click.stop="handleSelectPlan(row)">
                     {{ row.planKind === 'course-plan' ? '打开' : '编辑' }}
                   </el-button>
-                  <el-button size="small" type="success" plain round @click.stop="handleExport(row, 'word')">Word</el-button>
-                  <el-button v-if="row.planKind === 'course-plan'" size="small" type="success" plain round @click.stop="handleExport(row, 'pdf')">PDF</el-button>
+                  <el-button size="small" type="success" plain round :loading="isExportingPlan(row, 'word')" @click.stop="handleExport(row, 'word')">Word</el-button>
+                  <el-button v-if="row.planKind === 'course-plan'" size="small" type="success" plain round :loading="isExportingPlan(row, 'pdf')" @click.stop="handleExport(row, 'pdf')">PDF</el-button>
                   <el-button v-if="row.planKind !== 'course-plan'" size="small" type="danger" plain round @click.stop="handleDelete(row)">删除</el-button>
                 </div>
               </template>
@@ -425,7 +426,7 @@
             <div class="actions editor-action-buttons" v-if="currentPlan">
               <el-button size="small" type="info" plain round @click="returnToLessonList">返回我的教案</el-button>
               <el-button size="small" type="primary" plain round :loading="savingPlan" @click="handleSave">保存修改</el-button>
-              <el-button size="small" type="success" plain round @click="handleExport(currentPlan)">导出 Word</el-button>
+              <el-button size="small" type="success" plain round :loading="isExportingPlan(currentPlan, 'word')" @click="handleExport(currentPlan)">导出 Word</el-button>
             </div>
           </div>
 
@@ -955,7 +956,7 @@ const router = useRouter()
 const user = ref(null)
 const authChecking = ref(Boolean(localStorage.getItem('nsu_maic_token')))
 const loggingIn = ref(false)
-const loginForm = reactive({ username: '', password: '' })
+const loginForm = reactive({ username: '', password: '', role: 'teacher' })
 const activeModule = ref(routeToModule())
 const recordDialogVisible = ref(false)
 const recordDetail = ref(null)
@@ -1228,6 +1229,7 @@ const activeTab = ref('preview')
 const savingDraft = ref(false)
 const generating = ref(false)
 const savingPlan = ref(false)
+const exportingPlanKey = ref('')
 const optimizingField = ref('')
 const autoFillingContext = ref(false)
 const previewAiTarget = ref('')
@@ -1468,6 +1470,7 @@ async function handleLogin() {
   try {
     const data = await login(loginForm)
     localStorage.setItem('nsu_maic_token', data.token)
+    localStorage.setItem('nsu_maic_user_role', data.user?.role || '')
     user.value = data.user
     ElMessage.success('登录成功')
     await afterLogin()
@@ -1483,6 +1486,7 @@ async function handleLogout() {
     await logout()
   } finally {
     localStorage.removeItem('nsu_maic_token')
+    localStorage.removeItem('nsu_maic_user_role')
     user.value = null
     currentPlan.value = null
     generationRecords.value = []
@@ -2385,12 +2389,15 @@ async function handleDelete(row) {
 }
 
 async function handleExport(plan, format = 'word') {
+  if (!plan?.id) return
+  const currentExportKey = exportPlanKey(plan, format)
+  exportingPlanKey.value = currentExportKey
   try {
     if (plan?.planKind === 'course-plan') {
       if (format === 'pdf') {
-        exportCoursePlanPdf(plan.id)
+        await exportCoursePlanPdf(plan.id)
       } else {
-        exportCoursePlanWord(plan.id)
+        await exportCoursePlanWord(plan.id)
       }
       return
     }
@@ -2405,7 +2412,19 @@ async function handleExport(plan, format = 'word') {
     if (error !== 'cancel') {
       ElMessage.error(error.response?.data?.message || '导出失败')
     }
+  } finally {
+    if (exportingPlanKey.value === currentExportKey) {
+      exportingPlanKey.value = ''
+    }
   }
+}
+
+function exportPlanKey(plan, format = 'word') {
+  return `${plan?.planKind || 'lesson-plan'}:${plan?.id || ''}:${format}`
+}
+
+function isExportingPlan(plan, format = 'word') {
+  return Boolean(plan?.id) && exportingPlanKey.value === exportPlanKey(plan, format)
 }
 
 function normalizeCoursePlanSummary(item) {
@@ -2436,6 +2455,10 @@ async function switchModule(key) {
   if (key === 'lessons') {
     await router.push({ name: 'lesson-list' })
   }
+}
+
+function goAdminUsers() {
+  router.push({ name: 'admin-users' })
 }
 
 function buildSavePayload() {
@@ -3186,9 +3209,11 @@ onMounted(async () => {
   }
   try {
     user.value = await getCurrentUser()
+    localStorage.setItem('nsu_maic_user_role', user.value?.role || '')
     await afterLogin()
   } catch (error) {
     localStorage.removeItem('nsu_maic_token')
+    localStorage.removeItem('nsu_maic_user_role')
     user.value = null
   } finally {
     authChecking.value = false

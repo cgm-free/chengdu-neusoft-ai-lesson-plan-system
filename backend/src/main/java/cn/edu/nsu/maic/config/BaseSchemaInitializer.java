@@ -34,6 +34,28 @@ public class BaseSchemaInitializer implements ApplicationRunner {
                 )
                 """);
         jdbcTemplate.execute("""
+                create table if not exists teacher_account_request (
+                    id bigint primary key auto_increment,
+                    username varchar(64) not null,
+                    password_hash varchar(255) not null,
+                    real_name varchar(64) not null,
+                    employee_no varchar(64) null,
+                    phone varchar(64) null,
+                    college varchar(128) not null,
+                    department varchar(128) not null,
+                    major varchar(128) not null,
+                    course_name varchar(255) null,
+                    status varchar(32) not null default 'pending',
+                    review_note varchar(255) null,
+                    reviewed_by bigint null,
+                    reviewed_at datetime null,
+                    created_at datetime not null default current_timestamp,
+                    updated_at datetime not null default current_timestamp on update current_timestamp,
+                    index idx_teacher_account_request_status_created (status, created_at),
+                    index idx_teacher_account_request_username_status (username, status)
+                )
+                """);
+        jdbcTemplate.execute("""
                 create table if not exists lesson_plan (
                     id bigint primary key auto_increment,
                     user_id bigint not null,

@@ -6,7 +6,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.Timestamp;
 import java.util.Map;
@@ -24,9 +26,12 @@ public class AuthService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public LoginResponse login(String username, String password) {
+    public LoginResponse login(String username, String password, String role) {
         UserRecord record = findUserRecord(username);
         if (record == null || !passwordEncoder.matches(password, record.passwordHash)) {
+            throw new IllegalArgumentException("用户名或密码错误");
+        }
+        if (!normalizeRole(role).equalsIgnoreCase(record.role)) {
             throw new IllegalArgumentException("用户名或密码错误");
         }
         UserInfo user = new UserInfo(record.id, record.username, record.realName, record.role, record.department);
@@ -57,6 +62,14 @@ public class AuthService {
         return user;
     }
 
+    public UserInfo requireAdmin(HttpServletRequest request) {
+        UserInfo user = requireUser(request);
+        if (!user.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问管理员功能");
+        }
+        return user;
+    }
+
     public String extractToken(HttpServletRequest request) {
         String token = request.getHeader("X-Auth-Token");
         if (token == null || token.isBlank()) {
@@ -67,6 +80,14 @@ public class AuthService {
 
     public BCryptPasswordEncoder passwordEncoder() {
         return passwordEncoder;
+    }
+
+    private String normalizeRole(String role) {
+        String value = role == null ? "" : role.trim().toLowerCase();
+        if (!"admin".equals(value) && !"teacher".equals(value)) {
+            throw new IllegalArgumentException("登录身份无效");
+        }
+        return value;
     }
 
     private UserRecord findUserRecord(String username) {
@@ -106,4 +127,3 @@ public class AuthService {
         }
     }
 }
-

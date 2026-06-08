@@ -7,6 +7,7 @@
       @home="goHome"
       @new="goHome"
       @lessons="goLessons"
+      @admin="goAdminUsers"
       @logout="handleLogout"
     />
 
@@ -42,13 +43,13 @@
                   <el-button size="small" type="primary" plain round @click.stop="editCoursePlan(row)">编辑</el-button>
                   <el-button size="small" type="primary" plain round @click.stop="editCoursePlanMaterials(row)">修改材料</el-button>
                   <el-button size="small" type="success" plain round @click.stop="previewCoursePlan(row)">预览PDF</el-button>
-                  <el-button size="small" type="success" plain round @click.stop="exportPlan(row, 'word')">下载Word</el-button>
-                  <el-button size="small" type="success" plain round @click.stop="exportPlan(row, 'pdf')">下载PDF</el-button>
+                  <el-button size="small" type="success" plain round :loading="isExporting(row, 'word')" @click.stop="exportPlan(row, 'word')">下载Word</el-button>
+                  <el-button size="small" type="success" plain round :loading="isExporting(row, 'pdf')" @click.stop="exportPlan(row, 'pdf')">下载PDF</el-button>
                   <el-button size="small" type="danger" plain round @click.stop="removeCoursePlan(row)">删除</el-button>
                 </template>
                 <template v-else>
                   <el-button size="small" type="primary" plain round @click.stop="openPlan(row)">编辑</el-button>
-                  <el-button size="small" type="success" plain round @click.stop="exportPlan(row, 'word')">下载Word</el-button>
+                  <el-button size="small" type="success" plain round :loading="isExporting(row, 'word')" @click.stop="exportPlan(row, 'word')">下载Word</el-button>
                   <el-button size="small" type="danger" plain round @click.stop="removeLesson(row)">删除</el-button>
                 </template>
               </div>
@@ -97,6 +98,7 @@ const keyword = ref('')
 const courseFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+const exportingPlanKey = ref('')
 const pageSizes = [10, 20, 50, 100]
 
 const filteredPlans = computed(() => {
@@ -182,7 +184,13 @@ function goLessons() {
   router.push({ name: 'lesson-list' })
 }
 
+function goAdminUsers() {
+  router.push({ name: 'admin-users' })
+}
+
 async function exportPlan(row, format) {
+  const key = exportKey(row, format)
+  exportingPlanKey.value = key
   if (row.planKind === 'course-plan') {
     try {
       if (format === 'pdf') {
@@ -192,10 +200,26 @@ async function exportPlan(row, format) {
       }
     } catch (error) {
       ElMessage.error(error.response?.data?.message || error.message || '下载课程教案失败')
+    } finally {
+      exportingPlanKey.value = ''
     }
     return
   }
-  exportLessonPlanWord(row)
+  try {
+    await exportLessonPlanWord(row)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '下载单次课教案失败')
+  } finally {
+    exportingPlanKey.value = ''
+  }
+}
+
+function exportKey(row, format) {
+  return `${row.planKind}:${row.id}:${format}`
+}
+
+function isExporting(row, format) {
+  return exportingPlanKey.value === exportKey(row, format)
 }
 
 function previewCoursePlan(row) {

@@ -25,7 +25,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request.getUsername(), request.getPassword()));
+        return ApiResponse.ok(authService.login(request.getUsername(), request.getPassword(), request.getRole()));
     }
 
     @PostMapping("/logout")
@@ -39,4 +39,3 @@ public class AuthController {
         return ApiResponse.ok(authService.requireUser(request));
     }
 }
-

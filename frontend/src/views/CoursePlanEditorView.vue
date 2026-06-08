@@ -7,6 +7,7 @@
       @home="goHome"
       @new="goHome"
       @lessons="goLessons"
+      @admin="goAdminUsers"
       @logout="handleLogout"
     />
 
@@ -22,8 +23,8 @@
             <div class="topbar-actions">
               <el-button :loading="saving" @click="handleSave">保存</el-button>
               <el-button type="primary" plain @click="handlePreviewPdf">预览PDF</el-button>
-              <el-button type="primary" plain @click="handleExportWord">下载Word</el-button>
-              <el-button type="primary" @click="handleExportPdf">下载PDF</el-button>
+              <el-button type="primary" plain :loading="exportingWord" @click="handleExportWord">下载Word</el-button>
+              <el-button type="primary" :loading="exportingPdf" @click="handleExportPdf">下载PDF</el-button>
             </div>
           </section>
 
@@ -115,6 +116,8 @@ const route = useRoute()
 
 const loadingDetail = ref(false)
 const saving = ref(false)
+const exportingWord = ref(false)
+const exportingPdf = ref(false)
 const detail = ref(null)
 const draftAnalysis = ref(null)
 const draftContent = ref(null)
@@ -181,18 +184,24 @@ function handlePreviewPdf() {
 }
 
 async function handleExportWord() {
+  exportingWord.value = true
   try {
     await exportCoursePlanWord(route.params.id)
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '下载 Word 失败')
+  } finally {
+    exportingWord.value = false
   }
 }
 
 async function handleExportPdf() {
+  exportingPdf.value = true
   try {
     await exportCoursePlanPdf(route.params.id)
   } catch (error) {
     ElMessage.error(error.response?.data?.message || error.message || '下载 PDF 失败')
+  } finally {
+    exportingPdf.value = false
   }
 }
 
@@ -329,6 +338,10 @@ function goHome() {
 
 function goLessons() {
   router.push({ name: 'lesson-list' })
+}
+
+function goAdminUsers() {
+  router.push({ name: 'admin-users' })
 }
 </script>
 

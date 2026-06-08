@@ -26,9 +26,19 @@
         教案管理
       </button>
 
+      <button
+        v-if="isAdmin"
+        type="button"
+        class="nav-button"
+        :class="{ active: active === 'admin-users' }"
+        @click="$emit('admin')"
+      >
+        用户管理
+      </button>
+
       <div v-if="user" class="user-pill">
         <el-icon><UserFilled /></el-icon>
-        <span>{{ user.realName }} · {{ user.role }}</span>
+        <span>{{ user.realName }} · {{ roleLabel }}</span>
         <el-icon class="user-pill-arrow"><ArrowDown /></el-icon>
       </div>
 
@@ -41,15 +51,19 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ArrowDown, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import nsuBrand from '../assets/nsu-brand.png'
 
-defineProps({
+const props = defineProps({
   user: { type: Object, default: null },
   active: { type: String, default: '' },
 })
 
-defineEmits(['home', 'new', 'lessons', 'logout'])
+defineEmits(['home', 'new', 'lessons', 'admin', 'logout'])
+
+const isAdmin = computed(() => props.user?.role === 'admin')
+const roleLabel = computed(() => (props.user?.role === 'admin' ? '管理员' : '教师'))
 </script>
 
 <style scoped>
