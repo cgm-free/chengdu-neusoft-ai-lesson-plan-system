@@ -173,6 +173,28 @@
         <el-button type="primary" :loading="savingPassword" @click="savePassword">确认重置</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="approvedAccountDialogVisible" title="账号已创建" width="560px">
+      <div v-if="approvedAccount" class="approved-account-panel">
+        <div class="credential-row">
+          <span>教师姓名</span>
+          <strong>{{ approvedAccount.realName }}</strong>
+        </div>
+        <div class="credential-row">
+          <span>登录账号</span>
+          <strong>{{ approvedAccount.username }}</strong>
+        </div>
+        <div class="credential-row credential-row--password">
+          <span>初始密码</span>
+          <strong>{{ approvedAccount.initialPassword }}</strong>
+        </div>
+        <p>初始密码仅在本次审核通过后显示，请记录或导出后转交老师使用。</p>
+      </div>
+      <template #footer>
+        <el-button @click="approvedAccountDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="exportApprovedAccountExcel">导出 Excel</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -209,9 +231,11 @@ const requestKeyword = ref('')
 const requestStatusFilter = ref('pending')
 const userDialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
+const approvedAccountDialogVisible = ref(false)
 const dialogMode = ref('create')
 const editingUserId = ref(null)
 const passwordTarget = ref(null)
+const approvedAccount = ref(null)
 
 const userForm = ref(emptyUserForm())
 const passwordForm = ref({ password: '' })
@@ -381,17 +405,61 @@ async function approveRequest(row) {
   try {
     const result = await approveAccountRequest(row.id, { reviewNote: '审核通过' })
     await Promise.all([loadRequests(), loadUsers()])
-    await ElMessageBox.alert(
-      `教师账号“${result.user?.username || row.username}”已创建。<br />初始密码：<strong>${result.initialPassword}</strong><br />请记录后转交老师使用。`,
-      '账号已创建',
-      {
-        confirmButtonText: '我已记录',
-        dangerouslyUseHTMLString: true,
-      },
-    )
+    approvedAccount.value = {
+      username: result.user?.username || row.username,
+      realName: result.user?.realName || row.realName,
+      department: result.user?.department || [row.college, row.department, row.major].filter(Boolean).join(' / '),
+      initialPassword: result.initialPassword,
+      college: row.college || '',
+      requestDepartment: row.department || '',
+      major: row.major || '',
+      courseName: row.courseName || '',
+      createdAt: formatTime(new Date().toISOString()),
+    }
+    approvedAccountDialogVisible.value = true
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '通过申请失败')
   }
+}
+
+function exportApprovedAccountExcel() {
+  if (!approvedAccount.value) return
+  const item = approvedAccount.value
+  const rows = [
+    ['教师姓名', item.realName],
+    ['登录账号', item.username],
+    ['初始密码', item.initialPassword],
+    ['学院', item.college],
+    ['系部', item.requestDepartment],
+    ['专业', item.major],
+    ['课程名称', item.courseName],
+    ['创建时间', item.createdAt],
+  ]
+  const tableRows = rows
+    .map(([label, value]) => `<tr><th>${escapeExcelCell(label)}</th><td>${escapeExcelCell(value)}</td></tr>`)
+    .join('')
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1">${tableRows}</table></body></html>`
+  const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `教师账号_${safeFileName(item.realName || item.username)}.xls`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function escapeExcelCell(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function safeFileName(value) {
+  return String(value || '教师账号').replace(/[\\/:*?"<>|]/g, '_')
 }
 
 async function rejectRequest(row) {
@@ -564,6 +632,42 @@ function goAdminUsers() {
   color: #64748b;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.approved-account-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.approved-account-panel p {
+  margin: 4px 0 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.credential-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #d9e5f7;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.credential-row span {
+  color: #64748b;
+}
+
+.credential-row strong {
+  overflow-wrap: anywhere;
+  color: #102a43;
+}
+
+.credential-row--password {
+  background: #fff7ed;
+  border-color: #fed7aa;
 }
 
 .actions {
