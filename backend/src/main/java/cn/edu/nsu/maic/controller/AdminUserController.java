@@ -74,4 +74,11 @@ public class AdminUserController {
         adminUserService.disableUser(id, operator);
         return ApiResponse.ok(null);
     }
+
+    @DeleteMapping("/{id}/permanent")
+    public ApiResponse<Void> deletePermanent(@PathVariable Long id, HttpServletRequest request) {
+        UserInfo operator = authService.requireAdmin(request);
+        adminUserService.deleteUserPermanently(id, operator);
+        return ApiResponse.ok(null);
+    }
 }

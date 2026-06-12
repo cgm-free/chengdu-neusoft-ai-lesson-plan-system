@@ -84,6 +84,18 @@ public class AdminUserService {
         jdbcTemplate.update("update sys_user set enabled = 0 where id = ?", id);
     }
 
+    public void deleteUserPermanently(Long id, UserInfo operator) {
+        UserRecord current = requireRecord(id);
+        if (operator.getId().equals(current.id())) {
+            throw new IllegalArgumentException("不能删除当前登录管理员");
+        }
+        if (current.enabled()) {
+            throw new IllegalArgumentException("请先禁用该用户，再执行删除");
+        }
+        assertNoRelatedBusinessData(id);
+        jdbcTemplate.update("delete from sys_user where id = ?", id);
+    }
+
     public AdminUserDtos.Summary getByUsername(String username) {
         return jdbcTemplate.queryForObject(
                 "select id, username, real_name, role, department, enabled, last_login_at, created_at, updated_at from sys_user where username = ?",
@@ -126,6 +138,25 @@ public class AdminUserService {
         }
         if (!"admin".equals(nextRole)) {
             throw new IllegalArgumentException("不能将当前登录管理员改为教师");
+        }
+    }
+
+    private void assertNoRelatedBusinessData(Long userId) {
+        ensureNoRelatedRows("lesson_plan", "user_id", userId, "该用户已有教案数据，不能删除，只能保持禁用");
+        ensureNoRelatedRows("generation_record", "user_id", userId, "该用户已有生成记录，不能删除，只能保持禁用");
+        ensureNoRelatedRows("lesson_plan_version", "created_by", userId, "该用户已有教案版本记录，不能删除，只能保持禁用");
+        ensureNoRelatedRows("course_plan", "user_id", userId, "该用户已有课程教案数据，不能删除，只能保持禁用");
+        ensureNoRelatedRows("course_plan_generation_job", "user_id", userId, "该用户已有课程教案生成任务，不能删除，只能保持禁用");
+    }
+
+    private void ensureNoRelatedRows(String tableName, String columnName, Long userId, String message) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from " + tableName + " where " + columnName + " = ?",
+                Integer.class,
+                userId
+        );
+        if (count != null && count > 0) {
+            throw new IllegalArgumentException(message);
         }
     }
 

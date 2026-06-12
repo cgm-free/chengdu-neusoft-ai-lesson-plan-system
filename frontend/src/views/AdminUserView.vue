@@ -18,26 +18,26 @@
         <div class="panel-head">
           <div>
             <h1>用户管理</h1>
-            <p>审核教师账号申请，维护用户状态，必要时重置密码。</p>
+            <p>查看教师注册记录，维护用户状态，必要时可重置密码。</p>
           </div>
         </div>
 
         <el-tabs v-model="activeAdminTab" class="admin-tabs" @tab-change="handleAdminTabChange">
-          <el-tab-pane label="账号申请管理" name="requests">
+          <el-tab-pane label="注册记录" name="requests">
             <div class="filter-bar request-filter-bar">
               <el-input v-model="requestKeyword" clearable placeholder="搜索姓名、用户名、系部、专业或课程" />
-              <el-select v-model="requestStatusFilter" placeholder="按审核状态筛选" @change="loadRequests">
+              <el-select v-model="requestStatusFilter" placeholder="按状态筛选" @change="loadRequests">
                 <el-option label="全部" value="" />
-                <el-option label="待审核" value="pending" />
-                <el-option label="已通过" value="approved" />
-                <el-option label="已拒绝" value="rejected" />
+              <el-option label="待处理" value="pending" />
+              <el-option label="已注册" value="approved" />
+              <el-option label="已拒绝" value="rejected" />
               </el-select>
               <el-button :loading="requestLoading" @click="loadRequests">刷新</el-button>
             </div>
 
             <el-table v-loading="requestLoading" :data="filteredRequests" empty-text="暂无账号申请">
               <el-table-column prop="realName" label="教师姓名" min-width="120" />
-              <el-table-column prop="username" label="申请用户名" min-width="130" />
+              <el-table-column prop="username" label="登录账号" min-width="150" />
               <el-table-column prop="department" label="系部" min-width="130" />
               <el-table-column prop="major" label="专业" min-width="170" />
               <el-table-column prop="courseName" label="课程名称" min-width="160" />
@@ -117,6 +117,17 @@
                       @click="toggleUserEnabled(row)"
                     >
                       {{ row.enabled ? '禁用' : '启用' }}
+                    </el-button>
+                    <el-button
+                      v-if="!row.enabled"
+                      size="small"
+                      type="danger"
+                      plain
+                      round
+                      :disabled="isCurrentUser(row)"
+                      @click="deleteUser(row)"
+                    >
+                      删除
                     </el-button>
                   </div>
                 </template>
@@ -214,6 +225,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   approveAccountRequest,
   createAdminUser,
+  deleteAdminUserPermanently,
   disableAdminUser,
   getAccountRequests,
   getAdminUsers,
@@ -425,8 +437,27 @@ async function toggleUserEnabled(row) {
   }
 }
 
+async function deleteUser(row) {
+  await ElMessageBox.confirm(
+    `确定永久删除用户“${row.realName || row.username}”吗？该操作不可恢复，仅允许删除已禁用且没有业务数据的用户。`,
+    '删除确认',
+    {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    },
+  )
+  try {
+    await deleteAdminUserPermanently(row.id)
+    ElMessage.success('用户已删除')
+    await loadUsers()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '删除用户失败')
+  }
+}
+
 async function approveRequest(row) {
-  await ElMessageBox.confirm(`确定通过“${row.realName}”的账号申请吗？通过后会创建教师账号“${row.username}”。`, '通过申请', {
+  await ElMessageBox.confirm(`确定通过“${row.realName}”的账号申请吗？通过后系统会自动创建教师登录账号。`, '通过申请', {
     type: 'warning',
   })
   try {
@@ -634,9 +665,9 @@ function roleLabel(role) {
 }
 
 function requestStatusLabel(status) {
-  if (status === 'approved') return '已通过'
+  if (status === 'approved') return '已注册'
   if (status === 'rejected') return '已拒绝'
-  return '待审核'
+  return '待处理'
 }
 
 function requestStatusType(status) {

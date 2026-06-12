@@ -53,7 +53,7 @@
 
             <div class="login-card-meta">
               <el-checkbox v-model="rememberUser">记住我</el-checkbox>
-              <button type="button" class="login-meta-action" @click="openAccountRequestDialog">申请教师账号</button>
+              <button type="button" class="login-meta-action" @click="openAccountRequestDialog">注册教师账号</button>
             </div>
 
             <el-button
@@ -75,9 +75,12 @@
       </footer>
     </section>
 
-    <el-dialog v-model="accountRequestVisible" title="申请教师账号" width="680px" class="account-request-dialog">
+    <el-dialog v-model="accountRequestVisible" title="注册教师账号" width="680px" class="account-request-dialog">
       <el-form :model="accountRequestForm" label-position="top">
         <div class="request-form-grid">
+          <el-form-item label="登录用户名">
+            <el-input v-model="accountRequestForm.username" maxlength="64" />
+          </el-form-item>
           <el-form-item label="教师姓名">
             <el-input v-model="accountRequestForm.realName" maxlength="64" />
           </el-form-item>
@@ -103,14 +106,17 @@
               <el-option v-for="item in majorOptions" :key="item" :label="item" :value="item" />
             </el-select>
           </el-form-item>
-          <el-form-item label="申请用户名">
-            <el-input v-model="accountRequestForm.username" maxlength="64" />
+          <el-form-item label="登录密码">
+            <el-input v-model="accountRequestForm.password" type="password" show-password maxlength="72" />
+          </el-form-item>
+          <el-form-item label="确认密码">
+            <el-input v-model="accountRequestForm.confirmPassword" type="password" show-password maxlength="72" />
           </el-form-item>
         </div>
       </el-form>
       <template #footer>
         <el-button @click="accountRequestVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submittingAccountRequest" @click="submitTeacherAccountRequest">提交申请</el-button>
+        <el-button type="primary" :loading="submittingAccountRequest" @click="submitTeacherAccountRequest">注册</el-button>
       </template>
     </el-dialog>
   </div>
@@ -254,6 +260,8 @@ function createAccountRequestForm() {
     department: '智能工程系',
     major: '人工智能',
     courseName: '',
+    password: '',
+    confirmPassword: '',
   }
 }
 
@@ -269,10 +277,11 @@ function handleRequestDepartmentChange() {
 function normalizeAccountRequestPayload() {
   const formValue = accountRequestForm.value
   const requiredFields = [
+    ['username', '请输入登录用户名'],
     ['realName', '请输入教师姓名'],
     ['department', '请选择系部'],
     ['major', '请选择专业'],
-    ['username', '请输入申请用户名'],
+    ['password', '请输入登录密码'],
   ]
   for (const [field, message] of requiredFields) {
     if (!String(formValue[field] || '').trim()) {
@@ -280,8 +289,16 @@ function normalizeAccountRequestPayload() {
       return null
     }
   }
-  if (!/^[A-Za-z0-9_-]{3,64}$/.test(formValue.username.trim())) {
+  if (!/^[A-Za-z0-9_-]{3,64}$/.test(String(formValue.username).trim())) {
     ElMessage.warning('用户名需为3到64位字母、数字、下划线或短横线')
+    return null
+  }
+  if (String(formValue.password).trim().length < 6) {
+    ElMessage.warning('登录密码至少6个字符')
+    return null
+  }
+  if (formValue.password !== formValue.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
     return null
   }
   return {
@@ -291,6 +308,7 @@ function normalizeAccountRequestPayload() {
     department: formValue.department,
     major: formValue.major.trim(),
     courseName: formValue.courseName.trim(),
+    password: formValue.password,
   }
 }
 
@@ -299,11 +317,14 @@ async function submitTeacherAccountRequest() {
   if (!payload) return
   submittingAccountRequest.value = true
   try {
-    await submitAccountRequest(payload)
+    const result = await submitAccountRequest(payload)
+    form.value.role = 'teacher'
+    form.value.username = payload.username
+    form.value.password = payload.password
     accountRequestVisible.value = false
-    ElMessage.success('账号申请已提交，请等待管理员审核')
+    ElMessage.success(`注册成功，请使用账号 ${payload.username} 登录`)
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || '提交账号申请失败')
+    ElMessage.error(error.response?.data?.message || '注册教师账号失败')
   } finally {
     submittingAccountRequest.value = false
   }

@@ -91,6 +91,11 @@ export async function disableAdminUser(id) {
   return data.data
 }
 
+export async function deleteAdminUserPermanently(id) {
+  const { data } = await http.delete(`/admin/users/${id}/permanent`)
+  return data.data
+}
+
 export async function getOptions() {
   const { data } = await http.get('/config/options')
   return data.data

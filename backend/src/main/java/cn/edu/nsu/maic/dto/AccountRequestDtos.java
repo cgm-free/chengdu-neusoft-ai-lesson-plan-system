@@ -32,6 +32,10 @@ public class AccountRequestDtos {
         @Size(max = 255, message = "课程名称不能超过255个字符")
         private String courseName;
 
+        @NotBlank(message = "密码不能为空")
+        @Size(min = 6, max = 72, message = "密码长度必须为6到72个字符")
+        private String password;
+
         public String getUsername() {
             return username;
         }
@@ -78,6 +82,14 @@ public class AccountRequestDtos {
 
         public void setCourseName(String courseName) {
             this.courseName = courseName;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
         }
     }
 

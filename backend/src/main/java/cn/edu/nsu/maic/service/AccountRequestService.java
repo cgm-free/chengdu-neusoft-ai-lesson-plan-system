@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class AccountRequestService {
@@ -33,18 +34,33 @@ public class AccountRequestService {
 
     @Transactional
     public AccountRequestDtos.Summary submit(AccountRequestDtos.CreateRequest request) {
-        String username = cleanRequired(request.getUsername(), "用户名不能为空");
+        String username = resolveRequestUsername(request);
         ensureUsernameAvailableForSubmit(username);
+        String realName = cleanRequired(request.getRealName(), "教师姓名不能为空");
+        String college = cleanRequired(request.getCollege(), "学院不能为空");
+        String department = cleanRequired(request.getDepartment(), "系部不能为空");
+        String major = cleanRequired(request.getMajor(), "专业不能为空");
+        String courseName = cleanOptional(request.getCourseName());
+        String passwordHash = authService.passwordEncoder().encode(cleanRequired(request.getPassword(), "密码不能为空"));
+        jdbcTemplate.update(
+                "insert into sys_user (username, password_hash, real_name, role, department, enabled) values (?, ?, ?, 'teacher', ?, 1)",
+                username,
+                passwordHash,
+                realName,
+                organizationLabel(college, department, major)
+        );
         jdbcTemplate.update(
                 "insert into teacher_account_request " +
-                        "(username, real_name, college, department, major, course_name, status) " +
-                        "values (?, ?, ?, ?, ?, ?, 'pending')",
+                        "(username, real_name, college, department, major, course_name, status, review_note, reviewed_at) " +
+                        "values (?, ?, ?, ?, ?, ?, 'approved', ?, ?)",
                 username,
-                cleanRequired(request.getRealName(), "教师姓名不能为空"),
-                cleanRequired(request.getCollege(), "学院不能为空"),
-                cleanRequired(request.getDepartment(), "系部不能为空"),
-                cleanRequired(request.getMajor(), "专业不能为空"),
-                cleanOptional(request.getCourseName())
+                realName,
+                college,
+                department,
+                major,
+                courseName,
+                "教师自助注册",
+                new Timestamp(System.currentTimeMillis())
         );
         return getLatestByUsername(username);
     }
@@ -65,18 +81,21 @@ public class AccountRequestService {
         if (!STATUS_PENDING.equals(record.status())) {
             throw new IllegalArgumentException("该申请已审核，不能重复处理");
         }
-        ensureUsernameAvailableForApproval(record.username(), record.id());
+        String username = ensureUsernameAvailableForApproval(record.username(), record.id());
         String initialPassword = generateInitialPassword();
         jdbcTemplate.update(
                 "insert into sys_user (username, password_hash, real_name, role, department, enabled) values (?, ?, ?, 'teacher', ?, 1)",
-                record.username(),
+                username,
                 authService.passwordEncoder().encode(initialPassword),
                 record.realName(),
                 organizationLabel(record)
         );
+        if (!username.equals(record.username())) {
+            jdbcTemplate.update("update teacher_account_request set username = ? where id = ?", username, id);
+        }
         updateReviewStatus(id, STATUS_APPROVED, request, operator);
         AccountRequestDtos.ApprovalResult result = new AccountRequestDtos.ApprovalResult();
-        result.setUser(adminUserService.getByUsername(record.username()));
+        result.setUser(adminUserService.getByUsername(username));
         result.setRequest(getById(id));
         result.setInitialPassword(initialPassword);
         return result;
@@ -118,20 +137,24 @@ public class AccountRequestService {
         }
     }
 
-    private void ensureUsernameAvailableForApproval(String username, Long requestId) {
-        Integer userCount = jdbcTemplate.queryForObject("select count(*) from sys_user where username = ?", Integer.class, username);
-        if (userCount != null && userCount > 0) {
-            throw new IllegalArgumentException("用户名已存在，请拒绝该申请或让教师更换用户名");
+    private String ensureUsernameAvailableForApproval(String username, Long requestId) {
+        String normalized = cleanOptional(username).toLowerCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return generateUniqueUsername("teacher");
+        }
+        if (isUsernameUsedByUser(normalized)) {
+            return generateUniqueUsername(normalized);
         }
         Integer duplicatedPendingCount = jdbcTemplate.queryForObject(
                 "select count(*) from teacher_account_request where username = ? and status = 'pending' and id <> ?",
                 Integer.class,
-                username,
+                normalized,
                 requestId
         );
         if (duplicatedPendingCount != null && duplicatedPendingCount > 0) {
-            throw new IllegalArgumentException("该用户名存在其他待审核申请，请先处理重复申请");
+            return generateUniqueUsername(normalized);
         }
+        return normalized;
     }
 
     private AccountRequestDtos.Summary getLatestByUsername(String username) {
@@ -200,7 +223,11 @@ public class AccountRequestService {
     }
 
     private String organizationLabel(RequestRecord record) {
-        return record.college() + " / " + record.department() + " / " + record.major();
+        return organizationLabel(record.college(), record.department(), record.major());
+    }
+
+    private String organizationLabel(String college, String department, String major) {
+        return college + " / " + department + " / " + major;
     }
 
     private String cleanRequired(String value, String message) {
@@ -215,6 +242,14 @@ public class AccountRequestService {
         return value == null ? "" : value.trim();
     }
 
+    private String resolveRequestUsername(AccountRequestDtos.CreateRequest request) {
+        String provided = cleanOptional(request.getUsername()).toLowerCase(Locale.ROOT);
+        if (!provided.isBlank()) {
+            return provided;
+        }
+        return generateUniqueUsername("teacher");
+    }
+
     private String generateInitialPassword() {
         StringBuilder password = new StringBuilder(INITIAL_PASSWORD_LENGTH);
         for (int i = 0; i < INITIAL_PASSWORD_LENGTH; i++) {
@@ -222,6 +257,56 @@ public class AccountRequestService {
             password.append(INITIAL_PASSWORD_CHARS.charAt(index));
         }
         return password.toString();
+    }
+
+    private String generateUniqueUsername(String seed) {
+        String base = sanitizeUsernameSeed(seed);
+        if (base.length() < 3) {
+            base = "teacher";
+        }
+        for (int attempt = 0; attempt < 20; attempt++) {
+            String candidate = attempt == 0 ? base : appendRandomSuffix(base, attempt == 1 ? 4 : 6);
+            if (!isUsernameUsedByUser(candidate) && !isPendingUsernameUsed(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("系统生成登录账号失败，请重试");
+    }
+
+    private boolean isUsernameUsedByUser(String username) {
+        Integer userCount = jdbcTemplate.queryForObject("select count(*) from sys_user where username = ?", Integer.class, username);
+        return userCount != null && userCount > 0;
+    }
+
+    private boolean isPendingUsernameUsed(String username) {
+        Integer pendingCount = jdbcTemplate.queryForObject(
+                "select count(*) from teacher_account_request where username = ? and status = 'pending'",
+                Integer.class,
+                username
+        );
+        return pendingCount != null && pendingCount > 0;
+    }
+
+    private String sanitizeUsernameSeed(String seed) {
+        String normalized = cleanOptional(seed).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "");
+        if (normalized.length() > 64) {
+            normalized = normalized.substring(0, 64);
+        }
+        return normalized;
+    }
+
+    private String appendRandomSuffix(String base, int suffixLength) {
+        String prefix = base;
+        int maxPrefixLength = 64 - suffixLength;
+        if (prefix.length() > maxPrefixLength) {
+            prefix = prefix.substring(0, maxPrefixLength);
+        }
+        final String usernameChars = "abcdefghijkmnopqrstuvwxyz23456789";
+        StringBuilder suffix = new StringBuilder(suffixLength);
+        for (int i = 0; i < suffixLength; i++) {
+            suffix.append(usernameChars.charAt(SECURE_RANDOM.nextInt(usernameChars.length())));
+        }
+        return prefix + suffix;
     }
 
     private record RequestRecord(
