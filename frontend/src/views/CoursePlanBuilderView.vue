@@ -67,6 +67,15 @@
               </el-tooltip>
             </span>
           </div>
+          <div v-if="isGenerationCancellable" class="generation-job-actions">
+            <el-button type="danger" plain :loading="cancellingGeneration" @click="cancelGeneration">
+              停止生成
+            </el-button>
+          </div>
+          <div v-if="generationJob.status === 'cancelled'" class="generation-job-actions">
+            <el-button plain @click="goLessons">返回教案管理</el-button>
+            <el-button type="danger" plain @click="clearFailedJobState">清除状态</el-button>
+          </div>
           <div v-if="generationJob.status === 'failed'" class="generation-job-actions">
             <el-button v-if="generationJob.coursePlanId" type="primary" @click="openPartialDraft">打开已生成部分</el-button>
             <el-button v-if="generationJob.coursePlanId" plain @click="editPartialMaterials">用保存材料重新生成</el-button>
@@ -111,9 +120,10 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   analyzeCoursePlan,
+  cancelCoursePlanGenerationJob,
   createCoursePlanGenerationJob,
   downloadDefaultCoursePlanTemplate,
   getCoursePlanGenerationJob,
@@ -140,6 +150,7 @@ const teacherRequirements = ref('')
 const analysisState = ref(null)
 const analyzing = ref(false)
 const generating = ref(false)
+const cancellingGeneration = ref(false)
 const generationError = ref(null)
 const generationJob = ref(null)
 let generationPollTimer = null
@@ -159,6 +170,7 @@ const generationProgressPercent = computed(() => {
 const generationProgressStatus = computed(() => {
   if (generationJob.value?.status === 'failed') return 'exception'
   if (generationJob.value?.status === 'succeeded') return 'success'
+  if (generationJob.value?.status === 'cancelled') return 'warning'
   return undefined
 })
 const generationProgressHelp = computed(() => {
@@ -174,8 +186,10 @@ const generationProgressHelp = computed(() => {
 const generationStatusType = computed(() => {
   if (generationJob.value?.status === 'failed') return 'danger'
   if (generationJob.value?.status === 'succeeded') return 'success'
+  if (generationJob.value?.status === 'cancelled') return 'warning'
   return 'primary'
 })
+const isGenerationCancellable = computed(() => ['pending', 'running'].includes(generationJob.value?.status))
 const generationStatusText = computed(() => {
   const status = generationJob.value?.status
   if (status === 'pending') return '等待中'
@@ -298,6 +312,12 @@ async function handleGenerationJobState(job) {
   }
   if (job?.status === 'failed' || job?.status === 'cancelled') {
     stopGenerationPolling()
+    if (job?.status === 'cancelled') {
+      generationError.value = null
+      generating.value = false
+      ElMessage.info('课程教案生成已停止')
+      return
+    }
     const parsed = parseCoursePlanGenerationJobError(job, '课程教案生成失败')
     generationError.value = parsed.detail
     ElMessage.error(parsed.toast)
@@ -306,6 +326,35 @@ async function handleGenerationJobState(job) {
   }
   generating.value = true
   scheduleGenerationPoll()
+}
+
+async function cancelGeneration() {
+  if (!generationJob.value?.id || !isGenerationCancellable.value) return
+  try {
+    await ElMessageBox.confirm(
+      '停止后当前生成任务不会继续执行，已上传材料和单元拆分会保留在页面上，可重新生成。',
+      '停止生成课程教案',
+      {
+        confirmButtonText: '停止生成',
+        cancelButtonText: '继续生成',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+  cancellingGeneration.value = true
+  try {
+    generationJob.value = await cancelCoursePlanGenerationJob(generationJob.value.id)
+    stopGenerationPolling()
+    generating.value = false
+    generationError.value = null
+    ElMessage.info('已停止课程教案生成')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '停止生成失败')
+  } finally {
+    cancellingGeneration.value = false
+  }
 }
 
 function clearGenerationJobState() {
@@ -384,7 +433,7 @@ function editPartialMaterials() {
 function clearFailedJobState() {
   clearGenerationJobState()
   generationError.value = null
-  ElMessage.success('已清除当前失败任务状态')
+  ElMessage.success('已清除当前任务状态')
 }
 </script>
 

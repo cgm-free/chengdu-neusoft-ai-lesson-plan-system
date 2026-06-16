@@ -12,4 +12,7 @@ public interface CoursePlanGenerationProgress {
 
     default void snapshot(CoursePlanDtos.AnalysisResult analysis, CoursePlanDtos.DocumentContent content) {
     }
+
+    default void assertNotCancelled() {
+    }
 }

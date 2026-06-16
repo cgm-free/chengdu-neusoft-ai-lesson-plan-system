@@ -162,6 +162,14 @@ public class CoursePlanController {
         return ApiResponse.ok(coursePlanGenerationJobService.getJob(jobId, authService.requireUser(servletRequest)));
     }
 
+    @PostMapping("/generation-jobs/{jobId}/cancel")
+    public ApiResponse<CoursePlanDtos.GenerationJobSummary> cancelGenerationJob(
+            @PathVariable Long jobId,
+            HttpServletRequest servletRequest
+    ) {
+        return ApiResponse.ok(coursePlanGenerationJobService.cancelJob(jobId, authService.requireUser(servletRequest)));
+    }
+
     @PostMapping(value = "/{id}/regenerate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<CoursePlanDtos.Detail> regenerate(
             @PathVariable Long id,

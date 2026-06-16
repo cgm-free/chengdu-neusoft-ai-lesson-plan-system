@@ -274,6 +274,11 @@ export async function getCoursePlanGenerationJob(jobId) {
   return data.data
 }
 
+export async function cancelCoursePlanGenerationJob(jobId) {
+  const { data } = await http.post(`/course-plans/generation-jobs/${jobId}/cancel`)
+  return data.data
+}
+
 export async function reanalyzeCoursePlan(id, teacherRequirements) {
   const { data } = await http.post(`/course-plans/${id}/reanalyze`, { teacherRequirements }, {
     timeout: 1800000,

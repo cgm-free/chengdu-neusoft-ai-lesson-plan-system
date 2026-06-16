@@ -1492,10 +1492,12 @@ public class CoursePlanAiGenerationService {
         }
 
         private void update(String stage, String message) {
+            progress.assertNotCancelled();
             progress.update(stage, current, total, message);
         }
 
         private void step() {
+            progress.assertNotCancelled();
             current = Math.min(total, current + 1);
         }
     }

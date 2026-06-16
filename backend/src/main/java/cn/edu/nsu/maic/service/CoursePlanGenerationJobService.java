@@ -19,6 +19,7 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -70,6 +71,25 @@ public class CoursePlanGenerationJobService {
         return toSummary(record);
     }
 
+    public CoursePlanDtos.GenerationJobSummary cancelJob(Long jobId, UserInfo user) {
+        JobRecord record = loadJob(jobId);
+        assertAccess(record.userId(), user);
+        if ("succeeded".equals(record.status())) {
+            throw new IllegalStateException("课程教案已生成完成，不能停止。");
+        }
+        if ("failed".equals(record.status())) {
+            throw new IllegalStateException("课程教案生成已失败，不能停止。");
+        }
+        if (!"cancelled".equals(record.status())) {
+            jdbcTemplate.update(
+                    "update course_plan_generation_job set status = 'cancelled', stage = 'cancelled', message = ?, error_json = null where id = ? and status in ('pending', 'running')",
+                    "已停止课程教案生成",
+                    jobId
+            );
+        }
+        return getJob(jobId, user);
+    }
+
     @PreDestroy
     public void shutdown() {
         executorService.shutdownNow();
@@ -78,6 +98,7 @@ public class CoursePlanGenerationJobService {
     private void runJob(Long jobId, UserInfo user) {
         try {
             JobRecord job = loadJob(jobId);
+            ensureJobNotCancelled(jobId);
             updateProgress(jobId, "running", "prepare", 0, 1, "读取课程教案生成任务");
             CoursePlanDtos.GenerateRequest request = readRequest(job.requestJson());
             List<JobMaterialBinary> materials = listJobMaterials(jobId);
@@ -95,6 +116,11 @@ public class CoursePlanGenerationJobService {
                 public void snapshot(CoursePlanDtos.AnalysisResult analysis, CoursePlanDtos.DocumentContent content) {
                     savePartialSnapshot(jobId, analysis, content);
                 }
+
+                @Override
+                public void assertNotCancelled() {
+                    ensureJobNotCancelled(jobId);
+                }
             };
 
             CoursePlanDtos.Detail detail;
@@ -103,17 +129,29 @@ public class CoursePlanGenerationJobService {
             } else {
                 detail = coursePlanService.regenerate(job.coursePlanId(), template, courseStandard, ppts, references, request, user, progress);
             }
+            ensureJobNotCancelled(jobId);
             jdbcTemplate.update(
-                    "update course_plan_generation_job set status = 'succeeded', stage = 'completed', progress_current = progress_total, message = ?, course_plan_id = ?, error_json = null where id = ?",
+                    "update course_plan_generation_job set status = 'succeeded', stage = 'completed', progress_current = progress_total, message = ?, course_plan_id = ?, error_json = null where id = ? and status <> 'cancelled'",
                     "课程教案生成完成",
                     detail.id(),
                     jobId
             );
+        } catch (CancellationException exception) {
+            log.info("Course plan generation job {} cancelled", jobId);
+            markJobCancelled(jobId);
         } catch (CoursePlanGenerationException exception) {
+            if (isJobCancelled(jobId)) {
+                markJobCancelled(jobId);
+                return;
+            }
             log.warn("Course plan generation job {} failed: {}", jobId, exception.getMessage());
             Long partialCoursePlanId = publishPartialDraftIfAvailable(jobId, user);
             failJob(jobId, exception.error(), partialCoursePlanId);
         } catch (Exception exception) {
+            if (isJobCancelled(jobId)) {
+                markJobCancelled(jobId);
+                return;
+            }
             log.error("Course plan generation job " + jobId + " failed", exception);
             Long partialCoursePlanId = publishPartialDraftIfAvailable(jobId, user);
             failJob(jobId, new CoursePlanDtos.GenerationError(
@@ -373,8 +411,9 @@ public class CoursePlanGenerationJobService {
     }
 
     private void updateProgress(Long jobId, String status, String stage, int current, int total, String message) {
+        ensureJobNotCancelled(jobId);
         jdbcTemplate.update(
-                "update course_plan_generation_job set status = ?, stage = ?, progress_current = ?, progress_total = ?, message = ? where id = ?",
+                "update course_plan_generation_job set status = ?, stage = ?, progress_current = ?, progress_total = ?, message = ? where id = ? and status <> 'cancelled'",
                 status,
                 firstNonBlank(stage),
                 Math.max(0, current),
@@ -386,6 +425,9 @@ public class CoursePlanGenerationJobService {
     }
 
     private void savePartialSnapshot(Long jobId, CoursePlanDtos.AnalysisResult analysis, CoursePlanDtos.DocumentContent content) {
+        if (isJobCancelled(jobId)) {
+            return;
+        }
         if (analysis == null || content == null) {
             return;
         }
@@ -430,15 +472,42 @@ public class CoursePlanGenerationJobService {
     }
 
     private void failJob(Long jobId, CoursePlanDtos.GenerationError error, Long partialCoursePlanId) {
+        if (isJobCancelled(jobId)) {
+            markJobCancelled(jobId);
+            return;
+        }
         String message = error == null ? "课程教案生成失败" : error.message();
         if (partialCoursePlanId != null) {
             message = message + "。已保留已生成部分，可进入编辑页查看。";
         }
         jdbcTemplate.update(
-                "update course_plan_generation_job set status = 'failed', stage = 'failed', message = ?, error_json = ?, course_plan_id = coalesce(?, course_plan_id) where id = ?",
+                "update course_plan_generation_job set status = 'failed', stage = 'failed', message = ?, error_json = ?, course_plan_id = coalesce(?, course_plan_id) where id = ? and status <> 'cancelled'",
                 message,
                 writeJson(error),
                 partialCoursePlanId,
+                jobId
+        );
+    }
+
+    private void ensureJobNotCancelled(Long jobId) {
+        if (isJobCancelled(jobId)) {
+            throw new CancellationException("课程教案生成已停止");
+        }
+    }
+
+    private boolean isJobCancelled(Long jobId) {
+        String status = jdbcTemplate.queryForObject(
+                "select status from course_plan_generation_job where id = ?",
+                String.class,
+                jobId
+        );
+        return "cancelled".equals(status);
+    }
+
+    private void markJobCancelled(Long jobId) {
+        jdbcTemplate.update(
+                "update course_plan_generation_job set status = 'cancelled', stage = 'cancelled', message = ?, error_json = null where id = ? and status <> 'succeeded'",
+                "已停止课程教案生成",
                 jobId
         );
     }
