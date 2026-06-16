@@ -39,7 +39,7 @@ public class AccountRequestService {
         String realName = cleanRequired(request.getRealName(), "教师姓名不能为空");
         String college = cleanRequired(request.getCollege(), "学院不能为空");
         String department = cleanRequired(request.getDepartment(), "系部不能为空");
-        String major = cleanRequired(request.getMajor(), "专业不能为空");
+        String major = cleanOptional(request.getMajor());
         String courseName = cleanOptional(request.getCourseName());
         String passwordHash = authService.passwordEncoder().encode(cleanRequired(request.getPassword(), "密码不能为空"));
         jdbcTemplate.update(
@@ -227,7 +227,11 @@ public class AccountRequestService {
     }
 
     private String organizationLabel(String college, String department, String major) {
-        return college + " / " + department + " / " + major;
+        String cleanMajor = cleanOptional(major);
+        if (cleanMajor.isBlank()) {
+            return college + " / " + department;
+        }
+        return college + " / " + department + " / " + cleanMajor;
     }
 
     private String cleanRequired(String value, String message) {

@@ -91,19 +91,8 @@
             <el-input v-model="accountRequestForm.college" disabled />
           </el-form-item>
           <el-form-item label="系部">
-            <el-select v-model="accountRequestForm.department" @change="handleRequestDepartmentChange">
-              <el-option v-for="item in departmentOptions" :key="item.name" :label="item.name" :value="item.name" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="专业">
-            <el-select
-              v-model="accountRequestForm.major"
-              filterable
-              allow-create
-              default-first-option
-              placeholder="请选择或输入完整专业名"
-            >
-              <el-option v-for="item in majorOptions" :key="item" :label="item" :value="item" />
+            <el-select v-model="accountRequestForm.department">
+              <el-option v-for="item in departmentOptions" :key="item" :label="item" :value="item" />
             </el-select>
           </el-form-item>
           <el-form-item label="登录密码">
@@ -156,18 +145,9 @@ const accountRequestVisible = ref(false)
 const submittingAccountRequest = ref(false)
 
 const departmentOptions = [
-  {
-    name: '智能工程系',
-    majors: ['人工智能', '智能科学与技术'],
-  },
-  {
-    name: '大数据工程系',
-    majors: ['大数据管理与应用', '数据科学与大数据技术', '数据科学与大数据技术[中外合作办学]'],
-  },
-  {
-    name: '电子工程系',
-    majors: ['信息工程', '机器人工程'],
-  },
+  '智能工程系',
+  '大数据工程系',
+  '电子工程系',
 ]
 
 const accountRequestForm = ref(createAccountRequestForm())
@@ -176,11 +156,6 @@ const roleOptions = [
   { value: 'teacher', label: '教师登录', caption: '备课、生成与导出教案' },
   { value: 'admin', label: '管理员登录', caption: '管理教师账号与系统数据' },
 ]
-
-const majorOptions = computed(() => {
-  const matched = departmentOptions.find((item) => item.name === accountRequestForm.value.department)
-  return matched?.majors || []
-})
 
 const roleCopy = computed(() => {
   if (form.value.role === 'admin') {
@@ -258,7 +233,6 @@ function createAccountRequestForm() {
     realName: '',
     college: '智能科学与工程学院',
     department: '智能工程系',
-    major: '人工智能',
     courseName: '',
     password: '',
     confirmPassword: '',
@@ -270,17 +244,12 @@ function openAccountRequestDialog() {
   accountRequestVisible.value = true
 }
 
-function handleRequestDepartmentChange() {
-  accountRequestForm.value.major = majorOptions.value[0] || ''
-}
-
 function normalizeAccountRequestPayload() {
   const formValue = accountRequestForm.value
   const requiredFields = [
     ['username', '请输入登录用户名'],
     ['realName', '请输入教师姓名'],
     ['department', '请选择系部'],
-    ['major', '请选择专业'],
     ['password', '请输入登录密码'],
   ]
   for (const [field, message] of requiredFields) {
@@ -306,7 +275,6 @@ function normalizeAccountRequestPayload() {
     realName: formValue.realName.trim(),
     college: formValue.college,
     department: formValue.department,
-    major: formValue.major.trim(),
     courseName: formValue.courseName.trim(),
     password: formValue.password,
   }

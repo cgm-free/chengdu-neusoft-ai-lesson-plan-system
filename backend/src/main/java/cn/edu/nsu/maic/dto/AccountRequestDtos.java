@@ -25,7 +25,6 @@ public class AccountRequestDtos {
         @Size(max = 128, message = "系部不能超过128个字符")
         private String department;
 
-        @NotBlank(message = "专业不能为空")
         @Size(max = 128, message = "专业不能超过128个字符")
         private String major;
 

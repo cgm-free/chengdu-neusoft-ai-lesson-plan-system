@@ -25,7 +25,7 @@
         <el-tabs v-model="activeAdminTab" class="admin-tabs" @tab-change="handleAdminTabChange">
           <el-tab-pane label="注册记录" name="requests">
             <div class="filter-bar request-filter-bar">
-              <el-input v-model="requestKeyword" clearable placeholder="搜索姓名、用户名、系部、专业或课程" />
+              <el-input v-model="requestKeyword" clearable placeholder="搜索姓名、用户名、系部或课程" />
               <el-select v-model="requestStatusFilter" placeholder="按状态筛选" @change="loadRequests">
                 <el-option label="全部" value="" />
               <el-option label="待处理" value="pending" />
@@ -39,7 +39,6 @@
               <el-table-column prop="realName" label="教师姓名" min-width="120" />
               <el-table-column prop="username" label="登录账号" min-width="150" />
               <el-table-column prop="department" label="系部" min-width="130" />
-              <el-table-column prop="major" label="专业" min-width="170" />
               <el-table-column prop="courseName" label="课程名称" min-width="160" />
               <el-table-column label="状态" width="100">
                 <template #default="{ row }">
@@ -284,7 +283,6 @@ const filteredRequests = computed(() => {
       item.username,
       item.college,
       item.department,
-      item.major,
       item.courseName,
       requestStatusLabel(item.status),
     ].join(' ').toLowerCase()
@@ -484,7 +482,6 @@ function exportApprovedAccountExcel() {
     ['初始密码', item.initialPassword],
     ['学院', item.college],
     ['系部', item.requestDepartment],
-    ['专业', item.major],
     ['课程名称', item.courseName],
     ['创建时间', item.createdAt],
   ]
@@ -503,7 +500,6 @@ function buildCredentialRecord({ user: createdUser, fallback, password, note }) 
     initialPassword: password || '',
     college: fallback?.college || departmentParts[0] || '',
     requestDepartment: fallback?.requestDepartment || departmentParts[1] || fallback?.department || '',
-    major: fallback?.major || departmentParts[2] || '',
     courseName: fallback?.courseName || '',
     createdAt: formatTime(new Date().toISOString()),
     note,
