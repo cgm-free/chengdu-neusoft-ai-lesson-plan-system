@@ -4,6 +4,7 @@ import cn.edu.nsu.maic.dto.CoursePlanDtos;
 import cn.edu.nsu.maic.dto.UserInfo;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,17 @@ public class CoursePlanGenerationJobService {
         this.coursePlanService = coursePlanService;
     }
 
+    @PostConstruct
+    public void cancelInterruptedJobs() {
+        int count = jdbcTemplate.update(
+                "update course_plan_generation_job set status = 'cancelled', stage = 'cancelled', message = ?, error_json = null where status in ('pending', 'running')",
+                "服务器重启，已停止未完成的课程教案生成任务，请重新提交。"
+        );
+        if (count > 0) {
+            log.warn("Cancelled {} interrupted course plan generation jobs on startup", count);
+        }
+    }
+
     public CoursePlanDtos.GenerationJobSummary submit(
             Long coursePlanId,
             Long sourceCoursePlanId,
@@ -57,7 +69,10 @@ public class CoursePlanGenerationJobService {
         CoursePlanDtos.AnalysisResult analysis = request.analysis();
         String courseName = firstNonBlank(analysis.basicInfo() == null ? "" : analysis.basicInfo().courseName());
         String semester = firstNonBlank(analysis.basicInfo() == null ? "" : analysis.basicInfo().semester());
-        rejectActiveJob(coursePlanId, courseName, semester, user);
+        Long activeJobId = findActiveJob(coursePlanId, courseName, semester, user);
+        if (activeJobId != null) {
+            return getJob(activeJobId, user);
+        }
 
         Long jobId = insertJob(coursePlanId, courseName, semester, request, user);
         saveJobMaterials(jobId, sourceCoursePlanId, templateFile, courseStandardFile, pptFiles, referenceFiles);
@@ -217,27 +232,25 @@ public class CoursePlanGenerationJobService {
         }
     }
 
-    private void rejectActiveJob(Long coursePlanId, String courseName, String semester, UserInfo user) {
-        Integer count;
+    private Long findActiveJob(Long coursePlanId, String courseName, String semester, UserInfo user) {
+        List<Long> activeJobIds;
         if (coursePlanId != null) {
-            count = jdbcTemplate.queryForObject(
-                    "select count(*) from course_plan_generation_job where user_id = ? and course_plan_id = ? and status in ('pending', 'running')",
-                    Integer.class,
+            activeJobIds = jdbcTemplate.query(
+                    "select id from course_plan_generation_job where user_id = ? and course_plan_id = ? and status in ('pending', 'running') order by id desc limit 1",
+                    (rs, rowNum) -> rs.getLong("id"),
                     user.getId(),
                     coursePlanId
             );
         } else {
-            count = jdbcTemplate.queryForObject(
-                    "select count(*) from course_plan_generation_job where user_id = ? and course_plan_id is null and course_name = ? and coalesce(semester, '') = ? and status in ('pending', 'running')",
-                    Integer.class,
+            activeJobIds = jdbcTemplate.query(
+                    "select id from course_plan_generation_job where user_id = ? and course_plan_id is null and course_name = ? and coalesce(semester, '') = ? and status in ('pending', 'running') order by id desc limit 1",
+                    (rs, rowNum) -> rs.getLong("id"),
                     user.getId(),
                     courseName,
                     firstNonBlank(semester)
             );
         }
-        if (count != null && count > 0) {
-            throw new IllegalStateException("该课程已有生成任务正在运行，请等待任务完成后再提交。");
-        }
+        return activeJobIds.isEmpty() ? null : activeJobIds.get(0);
     }
 
     private Long insertJob(
