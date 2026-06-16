@@ -48,7 +48,7 @@
         <section v-if="generationJob" class="generation-job-card">
           <div class="generation-job-head">
             <div>
-              <h3>课程教案正在生成</h3>
+              <h3>{{ generationJobTitle }}</h3>
               <p>{{ generationJob.message || '生成任务已提交，正在处理。' }}</p>
             </div>
             <el-tag :type="generationStatusType">{{ generationStatusText }}</el-tag>
@@ -190,6 +190,11 @@ const generationStatusType = computed(() => {
   return 'primary'
 })
 const isGenerationCancellable = computed(() => ['pending', 'running'].includes(generationJob.value?.status))
+const generationJobTitle = computed(() => {
+  if (generationJob.value?.status === 'cancelled') return '课程教案生成已停止'
+  if (generationJob.value?.status === 'failed') return '课程教案生成失败'
+  return '课程教案正在生成'
+})
 const generationStatusText = computed(() => {
   const status = generationJob.value?.status
   if (status === 'pending') return '等待中'
