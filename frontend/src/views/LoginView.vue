@@ -20,7 +20,6 @@
         <section v-loading="checkingSession" class="login-card">
           <div class="login-card-head">
             <h2>账号登录</h2>
-            <p>系统将根据账号权限进入教师端或管理端。</p>
           </div>
 
           <el-form :model="form" label-position="top" @keyup.enter="handleSubmit">
@@ -364,7 +363,7 @@ async function submitTeacherAccountRequest() {
 }
 
 .login-card-head h2 {
-  margin: 0;
+  margin: 0 0 28px;
   color: #182a45;
   font-size: 28px;
 }
