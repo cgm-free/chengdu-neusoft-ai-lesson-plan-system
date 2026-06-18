@@ -3,7 +3,7 @@
     <button class="app-brand" type="button" @click="$emit('home')">
       <img class="brand-logo" :src="nsuBrand" alt="成都东软学院" />
       <span class="brand-copy">
-        <strong>智能教案生成系统</strong>
+        <strong>智慧教案生成系统</strong>
       </span>
     </button>
 

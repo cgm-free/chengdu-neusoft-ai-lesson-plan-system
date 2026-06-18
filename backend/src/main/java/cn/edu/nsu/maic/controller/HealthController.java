@@ -16,10 +16,9 @@ public class HealthController {
     @GetMapping("/health")
     public ApiResponse<Map<String, Object>> health() {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("name", "成都东软学院智能教案生成系统");
+        data.put("name", "成都东软学院智慧教案生成系统");
         data.put("status", "ok");
         data.put("time", LocalDateTime.now().toString());
         return ApiResponse.ok(data);
     }
 }
-

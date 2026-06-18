@@ -2,7 +2,7 @@
   <div class="page">
     <section v-if="!authChecking && !user" class="login-shell">
       <div class="login-panel">
-        <h1>成都东软学院智能教案生成系统</h1>
+        <h1>成都东软学院智慧教案生成系统</h1>
         <p>教师登录后可生成、编辑、保存并导出 Word 教案。</p>
         <el-form :model="loginForm" label-position="top" @keyup.enter="handleLogin">
           <el-form-item label="用户名">
@@ -359,7 +359,7 @@
 
             <div class="actions generate-actions">
               <el-button type="primary" size="large" :loading="generating" @click="handleGenerate">
-                {{ generating ? '正在生成中...' : '🚀 一键生成智能教案' }}
+                {{ generating ? '正在生成中...' : '🚀 一键生成智慧教案' }}
               </el-button>
             </div>
             <el-progress v-if="generating" class="generate-progress" :percentage="100" :indeterminate="true" :duration="2" />

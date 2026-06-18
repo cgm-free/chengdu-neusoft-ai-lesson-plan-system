@@ -21,7 +21,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
         String path = request.getRequestURI();
-        if (path.equals("/api/health") || path.equals("/api/auth/login")) {
+        if (path.equals("/api/auth/login")) {
+            return true;
+        }
+        if (path.equals("/api/health")) {
             return true;
         }
         if (path.equals("/api/account-requests") && "POST".equalsIgnoreCase(request.getMethod())) {
@@ -35,4 +38,5 @@ public class AuthInterceptor implements HandlerInterceptor {
         response.getWriter().write("{\"success\":false,\"message\":\"请先登录\",\"data\":null}");
         return false;
     }
+
 }

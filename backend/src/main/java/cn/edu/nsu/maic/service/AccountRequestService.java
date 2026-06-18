@@ -4,9 +4,12 @@ import cn.edu.nsu.maic.dto.AccountRequestDtos;
 import cn.edu.nsu.maic.dto.UserInfo;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.List;
@@ -25,15 +28,23 @@ public class AccountRequestService {
     private final JdbcTemplate jdbcTemplate;
     private final AuthService authService;
     private final AdminUserService adminUserService;
+    private final String invitationCode;
 
-    public AccountRequestService(JdbcTemplate jdbcTemplate, AuthService authService, AdminUserService adminUserService) {
+    public AccountRequestService(
+            JdbcTemplate jdbcTemplate,
+            AuthService authService,
+            AdminUserService adminUserService,
+            @Value("${maic.registration.invitation-code:}") String invitationCode
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.authService = authService;
         this.adminUserService = adminUserService;
+        this.invitationCode = invitationCode == null ? "" : invitationCode.trim();
     }
 
     @Transactional
     public AccountRequestDtos.Summary submit(AccountRequestDtos.CreateRequest request) {
+        validateInvitationCode(request.getInvitationCode());
         String username = resolveRequestUsername(request);
         ensureUsernameAvailableForSubmit(username);
         String realName = cleanRequired(request.getRealName(), "教师姓名不能为空");
@@ -63,6 +74,17 @@ public class AccountRequestService {
                 new Timestamp(System.currentTimeMillis())
         );
         return getLatestByUsername(username);
+    }
+
+    private void validateInvitationCode(String submittedCode) {
+        if (invitationCode.isBlank()) {
+            throw new IllegalStateException("系统未配置校内邀请码，请联系管理员");
+        }
+        byte[] expected = invitationCode.getBytes(StandardCharsets.UTF_8);
+        byte[] actual = cleanOptional(submittedCode).getBytes(StandardCharsets.UTF_8);
+        if (!MessageDigest.isEqual(expected, actual)) {
+            throw new IllegalArgumentException("校内邀请码不正确");
+        }
     }
 
     public List<AccountRequestDtos.Summary> list(String status) {

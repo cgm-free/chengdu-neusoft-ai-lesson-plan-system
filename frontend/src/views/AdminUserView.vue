@@ -387,8 +387,8 @@ async function saveUser() {
 
 async function savePassword() {
   const password = passwordForm.value.password.trim()
-  if (password.length < 6) {
-    ElMessage.warning('新密码至少6个字符')
+  if (password.length < 8) {
+    ElMessage.warning('新密码至少8个字符')
     return
   }
   savingPassword.value = true
@@ -625,8 +625,8 @@ function normalizeUserPayload() {
       ElMessage.warning('请输入账号')
       return null
     }
-    if (password.length < 6) {
-      ElMessage.warning('初始密码至少6个字符')
+    if (password.length < 8) {
+      ElMessage.warning('初始密码至少8个字符')
       return null
     }
     return {

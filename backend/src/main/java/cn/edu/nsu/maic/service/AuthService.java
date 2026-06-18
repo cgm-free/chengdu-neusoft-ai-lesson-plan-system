@@ -26,12 +26,9 @@ public class AuthService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public LoginResponse login(String username, String password, String role) {
+    public LoginResponse login(String username, String password) {
         UserRecord record = findUserRecord(username);
         if (record == null || !passwordEncoder.matches(password, record.passwordHash)) {
-            throw new IllegalArgumentException("用户名或密码错误");
-        }
-        if (!normalizeRole(role).equalsIgnoreCase(record.role)) {
             throw new IllegalArgumentException("用户名或密码错误");
         }
         UserInfo user = new UserInfo(record.id, record.username, record.realName, record.role, record.department);
@@ -80,14 +77,6 @@ public class AuthService {
 
     public BCryptPasswordEncoder passwordEncoder() {
         return passwordEncoder;
-    }
-
-    private String normalizeRole(String role) {
-        String value = role == null ? "" : role.trim().toLowerCase();
-        if (!"admin".equals(value) && !"teacher".equals(value)) {
-            throw new IllegalArgumentException("登录身份无效");
-        }
-        return value;
     }
 
     private UserRecord findUserRecord(String username) {

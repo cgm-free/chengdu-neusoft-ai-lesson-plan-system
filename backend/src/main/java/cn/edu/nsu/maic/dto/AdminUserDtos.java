@@ -99,7 +99,7 @@ public class AdminUserDtos {
         private String username;
 
         @NotBlank(message = "初始密码不能为空")
-        @Size(min = 6, max = 72, message = "密码长度必须为6到72个字符")
+        @Size(min = 8, max = 72, message = "密码长度必须为8到72个字符")
         private String password;
 
         @NotBlank(message = "姓名不能为空")
@@ -204,7 +204,7 @@ public class AdminUserDtos {
 
     public static class ResetPasswordRequest {
         @NotBlank(message = "新密码不能为空")
-        @Size(min = 6, max = 72, message = "密码长度必须为6到72个字符")
+        @Size(min = 8, max = 72, message = "密码长度必须为8到72个字符")
         private String password;
 
         public String getPassword() {

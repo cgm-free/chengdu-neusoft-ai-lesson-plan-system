@@ -3,6 +3,8 @@ spring:
     password: "replace-with-local-mysql-password"
 
 maic:
+  registration:
+    invitation-code: "replace-with-local-invitation-code"
   ai:
     provider: deepseek
     model-name: deepseek-v4-flash

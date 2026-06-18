@@ -32,8 +32,12 @@ public class AccountRequestDtos {
         private String courseName;
 
         @NotBlank(message = "密码不能为空")
-        @Size(min = 6, max = 72, message = "密码长度必须为6到72个字符")
+        @Size(min = 8, max = 72, message = "密码长度必须为8到72个字符")
         private String password;
+
+        @NotBlank(message = "校内邀请码不能为空")
+        @Size(max = 64, message = "校内邀请码不能超过64个字符")
+        private String invitationCode;
 
         public String getUsername() {
             return username;
@@ -89,6 +93,14 @@ public class AccountRequestDtos {
 
         public void setPassword(String password) {
             this.password = password;
+        }
+
+        public String getInvitationCode() {
+            return invitationCode;
+        }
+
+        public void setInvitationCode(String invitationCode) {
+            this.invitationCode = invitationCode;
         }
     }
 

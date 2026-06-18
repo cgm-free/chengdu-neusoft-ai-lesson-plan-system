@@ -18,6 +18,15 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 maic:
+  registration:
+    invitation-code: ${REGISTRATION_INVITATION_CODE:}
+  rate-limit:
+    login:
+      max-requests: ${LOGIN_RATE_LIMIT_MAX:10}
+      window-minutes: ${LOGIN_RATE_LIMIT_WINDOW_MINUTES:10}
+    registration:
+      max-requests: ${REGISTRATION_RATE_LIMIT_MAX:5}
+      window-minutes: ${REGISTRATION_RATE_LIMIT_WINDOW_MINUTES:60}
   cors:
     allowed-origin-patterns: http://localhost:*,http://127.0.0.1:*
   ai:

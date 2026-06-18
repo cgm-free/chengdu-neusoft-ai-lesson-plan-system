@@ -8,8 +8,8 @@
       <div class="login-layout">
         <section class="login-intro">
           <div class="intro-copy">
-            <h1>智能教案生成系统</h1>
-            <p class="intro-kicker">高效备课 · 智能生成 · 专业教学</p>
+            <h1>智慧教案生成系统</h1>
+            <p class="intro-kicker">高效备课 · 智慧生成 · 专业教学</p>
             <p class="intro-text">
               登录后可上传课程标准、PPT、教学日历与模板，生成整套课程教案并导出 Word / PDF。
             </p>
@@ -19,25 +19,11 @@
 
         <section v-loading="checkingSession" class="login-card">
           <div class="login-card-head">
-            <h2>{{ roleCopy.title }}</h2>
-            <p>{{ roleCopy.description }}</p>
+            <h2>账号登录</h2>
+            <p>系统将根据账号权限进入教师端或管理端。</p>
           </div>
 
           <el-form :model="form" label-position="top" @keyup.enter="handleSubmit">
-            <div class="role-switch" aria-label="登录身份">
-              <button
-                v-for="item in roleOptions"
-                :key="item.value"
-                type="button"
-                class="role-switch-item"
-                :class="{ active: form.role === item.value }"
-                @click="form.role = item.value"
-              >
-                <strong>{{ item.label }}</strong>
-                <span>{{ item.caption }}</span>
-              </button>
-            </div>
-
             <el-form-item label="用户名">
               <el-input v-model="form.username" :prefix-icon="User" />
             </el-form-item>
@@ -70,7 +56,7 @@
       </div>
 
       <footer class="login-footer">
-        <p>© 2026 成都东软学院 · 智能教案生成系统</p>
+        <p>© 2026 成都东软学院 · 智慧教案生成系统</p>
         <span>安全登录，保护您的数据</span>
       </footer>
     </section>
@@ -101,6 +87,15 @@
           <el-form-item label="确认密码">
             <el-input v-model="accountRequestForm.confirmPassword" type="password" show-password maxlength="72" />
           </el-form-item>
+          <el-form-item label="校内邀请码">
+            <el-input
+              v-model="accountRequestForm.invitationCode"
+              type="password"
+              show-password
+              maxlength="64"
+              placeholder="请输入管理员提供的校内邀请码"
+            />
+          </el-form-item>
         </div>
       </el-form>
       <template #footer>
@@ -123,24 +118,22 @@ import nsuBrand from '../assets/nsu-brand.png'
 const router = useRouter()
 const route = useRoute()
 const REMEMBERED_USERNAME_KEY = 'nsu_maic_remembered_username'
-const REMEMBERED_ROLE_KEY = 'nsu_maic_remembered_role'
 const REMEMBERED_PASSWORD_KEY = 'nsu_maic_remembered_password'
 const LEGACY_USERNAME_KEY = 'nsu_maic_last_username'
 
 const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY)
   || localStorage.getItem(LEGACY_USERNAME_KEY)
   || ''
-const rememberedRole = localStorage.getItem(REMEMBERED_ROLE_KEY) || 'teacher'
 localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
+localStorage.removeItem('nsu_maic_remembered_role')
 
 const form = ref({
   username: rememberedUsername,
   password: '',
-  role: ['admin', 'teacher'].includes(rememberedRole) ? rememberedRole : 'teacher',
 })
 const loggingIn = ref(false)
 const checkingSession = ref(Boolean(localStorage.getItem('nsu_maic_token')))
-const rememberUser = ref(Boolean(rememberedUsername || localStorage.getItem(REMEMBERED_ROLE_KEY)))
+const rememberUser = ref(Boolean(rememberedUsername))
 const accountRequestVisible = ref(false)
 const submittingAccountRequest = ref(false)
 
@@ -151,24 +144,6 @@ const departmentOptions = [
 ]
 
 const accountRequestForm = ref(createAccountRequestForm())
-
-const roleOptions = [
-  { value: 'teacher', label: '教师登录', caption: '备课、生成与导出教案' },
-  { value: 'admin', label: '管理员登录', caption: '管理教师账号与系统数据' },
-]
-
-const roleCopy = computed(() => {
-  if (form.value.role === 'admin') {
-    return {
-      title: '管理员登录',
-      description: '登录后进入用户管理，可新建、禁用和重置教师账号。',
-    }
-  }
-  return {
-    title: '教师登录',
-    description: '登录后可查看、打开并导出自己的课程教案。',
-  }
-})
 
 const redirectTarget = computed(() => {
   const target = String(route.query.redirect || '').trim()
@@ -211,10 +186,8 @@ async function handleSubmit() {
     localStorage.setItem('nsu_maic_user_role', result.user?.role || '')
     if (rememberUser.value) {
       localStorage.setItem(REMEMBERED_USERNAME_KEY, form.value.username)
-      localStorage.setItem(REMEMBERED_ROLE_KEY, form.value.role)
     } else {
       localStorage.removeItem(REMEMBERED_USERNAME_KEY)
-      localStorage.removeItem(REMEMBERED_ROLE_KEY)
     }
     localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
     localStorage.removeItem(LEGACY_USERNAME_KEY)
@@ -236,6 +209,7 @@ function createAccountRequestForm() {
     courseName: '',
     password: '',
     confirmPassword: '',
+    invitationCode: '',
   }
 }
 
@@ -251,6 +225,7 @@ function normalizeAccountRequestPayload() {
     ['realName', '请输入教师姓名'],
     ['department', '请选择系部'],
     ['password', '请输入登录密码'],
+    ['invitationCode', '请输入校内邀请码'],
   ]
   for (const [field, message] of requiredFields) {
     if (!String(formValue[field] || '').trim()) {
@@ -262,8 +237,8 @@ function normalizeAccountRequestPayload() {
     ElMessage.warning('用户名需为3到64位字母、数字、下划线或短横线')
     return null
   }
-  if (String(formValue.password).trim().length < 6) {
-    ElMessage.warning('登录密码至少6个字符')
+  if (String(formValue.password).trim().length < 8) {
+    ElMessage.warning('登录密码至少8个字符')
     return null
   }
   if (formValue.password !== formValue.confirmPassword) {
@@ -277,6 +252,7 @@ function normalizeAccountRequestPayload() {
     department: formValue.department,
     courseName: formValue.courseName.trim(),
     password: formValue.password,
+    invitationCode: formValue.invitationCode.trim(),
   }
 }
 
@@ -286,7 +262,6 @@ async function submitTeacherAccountRequest() {
   submittingAccountRequest.value = true
   try {
     const result = await submitAccountRequest(payload)
-    form.value.role = 'teacher'
     form.value.username = payload.username
     form.value.password = payload.password
     accountRequestVisible.value = false
@@ -398,51 +373,6 @@ async function submitTeacherAccountRequest() {
   margin: 10px 0 28px;
   color: #6a7890;
   font-size: 16px;
-}
-
-.role-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 22px;
-}
-
-.role-switch-item {
-  min-width: 0;
-  min-height: 72px;
-  padding: 12px 14px;
-  border: 1px solid #d7e4fb;
-  border-radius: 14px;
-  display: grid;
-  align-content: center;
-  gap: 5px;
-  color: #395577;
-  background: #f8fbff;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease;
-}
-
-.role-switch-item strong {
-  font-size: 16px;
-  line-height: 1.25;
-}
-
-.role-switch-item span {
-  color: #70829b;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.role-switch-item.active {
-  border-color: #1d6ff2;
-  color: #0f4fb8;
-  background: #eef6ff;
-  box-shadow: inset 0 0 0 1px rgba(29, 111, 242, 0.18), 0 10px 20px rgba(37, 99, 235, 0.08);
-}
-
-.role-switch-item.active span {
-  color: #2e65b6;
 }
 
 .login-card-meta {
@@ -582,10 +512,6 @@ async function submitTeacherAccountRequest() {
   .login-card-meta {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .role-switch {
-    grid-template-columns: 1fr;
   }
 
   .request-form-grid {

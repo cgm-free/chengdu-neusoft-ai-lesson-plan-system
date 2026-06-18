@@ -1,4 +1,4 @@
-# 成都东软学院智能教案生成系统：阿里云 ECS 零基础部署文档
+# 成都东软学院智慧教案生成系统：阿里云 ECS 零基础部署文档
 
 本文是本项目从“申请阿里云 ECS 试用服务器”到“公网 IP 访问、域名访问、HTTPS 访问”的完整部署记录。写法按零基础理解设计：先解释概念，再给命令，再说明命令作用和成功标志。
 
@@ -1166,7 +1166,7 @@ curl.exe https://nsu-lesson.xyz/api/health
 成功时会返回：
 
 ```json
-{"success":true,"message":"success","data":{"name":"成都东软学院智能教案生成系统","status":"ok"}}
+{"success":true,"message":"success","data":{"name":"成都东软学院智慧教案生成系统","status":"ok"}}
 ```
 
 ## 25. 登录接口验证
