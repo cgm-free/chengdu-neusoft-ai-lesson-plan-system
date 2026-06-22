@@ -66,6 +66,11 @@ export async function getAdminUsers() {
   return data.data
 }
 
+export async function getAdminUserStats() {
+  const { data } = await http.get('/admin/users/stats')
+  return data.data
+}
+
 export async function createAdminUser(payload) {
   const { data } = await http.post('/admin/users', payload)
   return data.data

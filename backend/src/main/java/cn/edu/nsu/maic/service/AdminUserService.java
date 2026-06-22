@@ -29,6 +29,36 @@ public class AdminUserService {
         );
     }
 
+    public AdminUserDtos.Stats getStats() {
+        return jdbcTemplate.queryForObject(
+                """
+                select
+                    (select count(*) from sys_user) as total_users,
+                    (select count(*) from sys_user where role = 'admin') as admin_users,
+                    (select count(*) from sys_user where role = 'teacher') as teacher_users,
+                    (select count(*) from sys_user where role = 'teacher' and enabled = 1) as enabled_teacher_users,
+                    (select count(*) from sys_user where role = 'teacher' and enabled = 0) as disabled_teacher_users,
+                    (select count(*) from course_plan where status <> 'deleted') as course_plan_count,
+                    (select count(*) from lesson_plan where status <> 'deleted') as lesson_plan_count,
+                    (select count(*) from generation_record) as generation_record_count,
+                    (select count(*) from course_plan_generation_job where status in ('pending', 'running')) as active_generation_job_count
+                """,
+                (rs, rowNum) -> {
+                    AdminUserDtos.Stats stats = new AdminUserDtos.Stats();
+                    stats.setTotalUsers(rs.getInt("total_users"));
+                    stats.setAdminUsers(rs.getInt("admin_users"));
+                    stats.setTeacherUsers(rs.getInt("teacher_users"));
+                    stats.setEnabledTeacherUsers(rs.getInt("enabled_teacher_users"));
+                    stats.setDisabledTeacherUsers(rs.getInt("disabled_teacher_users"));
+                    stats.setCoursePlanCount(rs.getInt("course_plan_count"));
+                    stats.setLessonPlanCount(rs.getInt("lesson_plan_count"));
+                    stats.setGenerationRecordCount(rs.getInt("generation_record_count"));
+                    stats.setActiveGenerationJobCount(rs.getInt("active_generation_job_count"));
+                    return stats;
+                }
+        );
+    }
+
     public AdminUserDtos.Summary createUser(AdminUserDtos.CreateRequest request) {
         String username = cleanRequired(request.getUsername(), "用户名不能为空");
         String realName = cleanRequired(request.getRealName(), "姓名不能为空");

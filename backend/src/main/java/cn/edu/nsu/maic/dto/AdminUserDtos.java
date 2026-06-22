@@ -9,6 +9,90 @@ import java.time.LocalDateTime;
 
 public class AdminUserDtos {
 
+    public static class Stats {
+        private Integer totalUsers;
+        private Integer adminUsers;
+        private Integer teacherUsers;
+        private Integer enabledTeacherUsers;
+        private Integer disabledTeacherUsers;
+        private Integer coursePlanCount;
+        private Integer lessonPlanCount;
+        private Integer generationRecordCount;
+        private Integer activeGenerationJobCount;
+
+        public Integer getTotalUsers() {
+            return totalUsers;
+        }
+
+        public void setTotalUsers(Integer totalUsers) {
+            this.totalUsers = totalUsers;
+        }
+
+        public Integer getAdminUsers() {
+            return adminUsers;
+        }
+
+        public void setAdminUsers(Integer adminUsers) {
+            this.adminUsers = adminUsers;
+        }
+
+        public Integer getTeacherUsers() {
+            return teacherUsers;
+        }
+
+        public void setTeacherUsers(Integer teacherUsers) {
+            this.teacherUsers = teacherUsers;
+        }
+
+        public Integer getEnabledTeacherUsers() {
+            return enabledTeacherUsers;
+        }
+
+        public void setEnabledTeacherUsers(Integer enabledTeacherUsers) {
+            this.enabledTeacherUsers = enabledTeacherUsers;
+        }
+
+        public Integer getDisabledTeacherUsers() {
+            return disabledTeacherUsers;
+        }
+
+        public void setDisabledTeacherUsers(Integer disabledTeacherUsers) {
+            this.disabledTeacherUsers = disabledTeacherUsers;
+        }
+
+        public Integer getCoursePlanCount() {
+            return coursePlanCount;
+        }
+
+        public void setCoursePlanCount(Integer coursePlanCount) {
+            this.coursePlanCount = coursePlanCount;
+        }
+
+        public Integer getLessonPlanCount() {
+            return lessonPlanCount;
+        }
+
+        public void setLessonPlanCount(Integer lessonPlanCount) {
+            this.lessonPlanCount = lessonPlanCount;
+        }
+
+        public Integer getGenerationRecordCount() {
+            return generationRecordCount;
+        }
+
+        public void setGenerationRecordCount(Integer generationRecordCount) {
+            this.generationRecordCount = generationRecordCount;
+        }
+
+        public Integer getActiveGenerationJobCount() {
+            return activeGenerationJobCount;
+        }
+
+        public void setActiveGenerationJobCount(Integer activeGenerationJobCount) {
+            this.activeGenerationJobCount = activeGenerationJobCount;
+        }
+    }
+
     public static class Summary {
         private Long id;
         private String username;

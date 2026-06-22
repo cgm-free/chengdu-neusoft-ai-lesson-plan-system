@@ -37,6 +37,12 @@ public class AdminUserController {
         return ApiResponse.ok(adminUserService.listUsers());
     }
 
+    @GetMapping("/stats")
+    public ApiResponse<AdminUserDtos.Stats> stats(HttpServletRequest request) {
+        authService.requireAdmin(request);
+        return ApiResponse.ok(adminUserService.getStats());
+    }
+
     @PostMapping
     public ApiResponse<AdminUserDtos.Summary> create(@Valid @RequestBody AdminUserDtos.CreateRequest payload,
                                                      HttpServletRequest request) {

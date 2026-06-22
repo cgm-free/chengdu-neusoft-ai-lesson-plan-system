@@ -22,6 +22,14 @@
           </div>
         </div>
 
+        <section class="stats-grid" aria-label="系统统计概览">
+          <article v-for="item in statCards" :key="item.key" class="stat-card">
+            <span class="stat-card__label">{{ item.label }}</span>
+            <strong class="stat-card__value">{{ item.value }}</strong>
+            <span class="stat-card__hint">{{ item.hint }}</span>
+          </article>
+        </section>
+
         <el-tabs v-model="activeAdminTab" class="admin-tabs" @tab-change="handleAdminTabChange">
           <el-tab-pane label="注册记录" name="requests">
             <div class="filter-bar request-filter-bar">
@@ -227,6 +235,7 @@ import {
   deleteAdminUserPermanently,
   disableAdminUser,
   getAccountRequests,
+  getAdminUserStats,
   getAdminUsers,
   rejectAccountRequest,
   resetAdminUserPassword,
@@ -240,6 +249,7 @@ const router = useRouter()
 const activeAdminTab = ref('requests')
 const users = ref([])
 const requests = ref([])
+const stats = ref(emptyStats())
 const loading = ref(false)
 const requestLoading = ref(false)
 const saving = ref(false)
@@ -261,8 +271,47 @@ const userForm = ref(emptyUserForm())
 const passwordForm = ref({ password: '' })
 
 const { user, authChecking, handleLogout } = useAuthenticatedPage(async () => {
-  await Promise.all([loadUsers(), loadRequests()])
+  await Promise.all([loadUsers(), loadRequests(), loadStats()])
 })
+
+const statCards = computed(() => [
+  {
+    key: 'teacherUsers',
+    label: '教师账号',
+    value: formatStat(stats.value.teacherUsers),
+    hint: `管理员 ${formatStat(stats.value.adminUsers)} 人，账号总数 ${formatStat(stats.value.totalUsers)} 人`,
+  },
+  {
+    key: 'enabledTeacherUsers',
+    label: '启用教师',
+    value: formatStat(stats.value.enabledTeacherUsers),
+    hint: `禁用教师 ${formatStat(stats.value.disabledTeacherUsers)} 人`,
+  },
+  {
+    key: 'coursePlanCount',
+    label: '课程教案',
+    value: formatStat(stats.value.coursePlanCount),
+    hint: '按课程维度沉淀的教案记录',
+  },
+  {
+    key: 'lessonPlanCount',
+    label: '单次教案',
+    value: formatStat(stats.value.lessonPlanCount),
+    hint: '面向课次编辑与复用的教案记录',
+  },
+  {
+    key: 'generationRecordCount',
+    label: '生成记录',
+    value: formatStat(stats.value.generationRecordCount),
+    hint: '用于统计模型调用和生成留痕',
+  },
+  {
+    key: 'activeGenerationJobCount',
+    label: '运行中任务',
+    value: formatStat(stats.value.activeGenerationJobCount),
+    hint: '包含待处理和生成中的课程教案任务',
+  },
+])
 
 const filteredUsers = computed(() => {
   const word = keyword.value.trim().toLowerCase()
@@ -304,6 +353,17 @@ async function loadUsers() {
     ElMessage.error(error.response?.data?.message || '读取用户列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadStats() {
+  try {
+    stats.value = {
+      ...emptyStats(),
+      ...(await getAdminUserStats()),
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '读取系统统计失败')
   }
 }
 
@@ -377,7 +437,7 @@ async function saveUser() {
       ElMessage.success('用户已更新')
     }
     userDialogVisible.value = false
-    await loadUsers()
+    await Promise.all([loadUsers(), loadStats()])
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '保存用户失败')
   } finally {
@@ -403,6 +463,7 @@ async function savePassword() {
       note: '新密码仅在本次重置后显示，请记录或导出后转交老师使用。',
     })
     approvedAccountDialogVisible.value = true
+    await loadStats()
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '重置密码失败')
   } finally {
@@ -429,7 +490,7 @@ async function toggleUserEnabled(row) {
       await disableAdminUser(row.id)
       ElMessage.success('用户已禁用')
     }
-    await loadUsers()
+    await Promise.all([loadUsers(), loadStats()])
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '更新用户状态失败')
   }
@@ -448,7 +509,7 @@ async function deleteUser(row) {
   try {
     await deleteAdminUserPermanently(row.id)
     ElMessage.success('用户已删除')
-    await loadUsers()
+    await Promise.all([loadUsers(), loadStats()])
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '删除用户失败')
   }
@@ -460,7 +521,7 @@ async function approveRequest(row) {
   })
   try {
     const result = await approveAccountRequest(row.id, { reviewNote: '审核通过' })
-    await Promise.all([loadRequests(), loadUsers()])
+    await Promise.all([loadRequests(), loadUsers(), loadStats()])
     approvedAccount.value = buildCredentialRecord({
       user: result.user,
       fallback: row,
@@ -656,6 +717,24 @@ function emptyUserForm() {
   }
 }
 
+function emptyStats() {
+  return {
+    totalUsers: 0,
+    adminUsers: 0,
+    teacherUsers: 0,
+    enabledTeacherUsers: 0,
+    disabledTeacherUsers: 0,
+    coursePlanCount: 0,
+    lessonPlanCount: 0,
+    generationRecordCount: 0,
+    activeGenerationJobCount: 0,
+  }
+}
+
+function formatStat(value) {
+  return Number(value || 0).toLocaleString('zh-CN')
+}
+
 function roleLabel(role) {
   return role === 'admin' ? '管理员' : '教师'
 }
@@ -748,6 +827,40 @@ function goAdminUsers() {
   margin-top: 4px;
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 16px 18px;
+  border: 1px solid #dbe7f5;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.stat-card__label {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.stat-card__value {
+  color: #102a43;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.stat-card__hint {
+  color: #7b8794;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .panel-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -830,11 +943,21 @@ function goAdminUsers() {
     flex-direction: column;
   }
 
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .filter-bar {
     grid-template-columns: 1fr;
   }
 
   .panel-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
     grid-template-columns: 1fr;
   }
 }
