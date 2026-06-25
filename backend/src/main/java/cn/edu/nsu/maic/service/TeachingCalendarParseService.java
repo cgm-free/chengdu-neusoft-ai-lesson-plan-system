@@ -38,7 +38,7 @@ public class TeachingCalendarParseService {
             }
             int headerRowIndex = detectHeaderRow(sheet);
             ColumnMapping mapping = detectColumns(sheet, headerRowIndex);
-            List<TeachingCalendarEntryDto> entries = readEntries(sheet, headerRowIndex + 1, mapping);
+            List<TeachingCalendarEntryDto> entries = collapseEntries(readEntries(sheet, headerRowIndex + 1, mapping));
             if (entries.isEmpty()) {
                 throw new IllegalArgumentException("未从教学日历中识别到授课安排，请确认表格包含周次、课次、课型和授课内容");
             }
@@ -196,9 +196,74 @@ public class TeachingCalendarParseService {
             entry.setLessonType(lessonType);
             entry.setTopic(topic);
             entry.setRawText(rawText);
+            entry.setAllocatedHours(parseInt(period));
             entries.add(entry);
         }
         return entries;
+    }
+
+    private List<TeachingCalendarEntryDto> collapseEntries(List<TeachingCalendarEntryDto> entries) {
+        List<TeachingCalendarEntryDto> collapsed = new ArrayList<>();
+        for (TeachingCalendarEntryDto entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            if (!collapsed.isEmpty() && sameSession(collapsed.get(collapsed.size() - 1), entry)) {
+                collapsed.set(collapsed.size() - 1, mergeEntries(collapsed.get(collapsed.size() - 1), entry));
+                continue;
+            }
+            collapsed.add(copyEntry(entry));
+        }
+        return collapsed;
+    }
+
+    private boolean sameSession(TeachingCalendarEntryDto left, TeachingCalendarEntryDto right) {
+        return clean(left.getWeek()).equals(clean(right.getWeek()))
+                && clean(left.getSession()).equals(clean(right.getSession()));
+    }
+
+    private TeachingCalendarEntryDto mergeEntries(TeachingCalendarEntryDto base, TeachingCalendarEntryDto current) {
+        TeachingCalendarEntryDto merged = copyEntry(base);
+        merged.setLessonType(joinDistinct(base.getLessonType(), current.getLessonType(), " / "));
+        merged.setTopic(joinDistinct(base.getTopic(), current.getTopic(), "；"));
+        merged.setRawText(joinDistinct(base.getRawText(), current.getRawText(), "\n"));
+        merged.setAllocatedHours(firstPositive(base.getAllocatedHours(), current.getAllocatedHours(), base.getPeriodCount(), current.getPeriodCount()));
+        merged.setPeriodCount(firstPositive(base.getPeriodCount(), current.getPeriodCount(), base.getAllocatedHours(), current.getAllocatedHours()));
+        return merged;
+    }
+
+    private TeachingCalendarEntryDto copyEntry(TeachingCalendarEntryDto source) {
+        TeachingCalendarEntryDto copy = new TeachingCalendarEntryDto();
+        copy.setWeek(source.getWeek());
+        copy.setSession(source.getSession());
+        copy.setPeriodCount(source.getPeriodCount());
+        copy.setLessonType(source.getLessonType());
+        copy.setTopic(source.getTopic());
+        copy.setRawText(source.getRawText());
+        copy.setAllocatedHours(source.getAllocatedHours());
+        return copy;
+    }
+
+    private Integer firstPositive(Integer... values) {
+        for (Integer value : values) {
+            if (value != null && value > 0) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String joinDistinct(String left, String right, String separator) {
+        List<String> parts = new ArrayList<>();
+        String leftValue = clean(left);
+        String rightValue = clean(right);
+        if (!leftValue.isBlank()) {
+            parts.add(leftValue);
+        }
+        if (!rightValue.isBlank() && parts.stream().noneMatch(item -> item.equals(rightValue))) {
+            parts.add(rightValue);
+        }
+        return String.join(separator, parts);
     }
 
     private String inferTopic(Sheet sheet, int rowIndex, ColumnMapping mapping) {

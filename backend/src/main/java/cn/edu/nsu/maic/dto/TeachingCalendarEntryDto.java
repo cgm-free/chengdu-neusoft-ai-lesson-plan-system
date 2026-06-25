@@ -8,6 +8,7 @@ public class TeachingCalendarEntryDto {
     private String lessonType;
     private String topic;
     private String rawText;
+    private Integer allocatedHours;
 
     public String getWeek() {
         return week;
@@ -55,5 +56,13 @@ public class TeachingCalendarEntryDto {
 
     public void setRawText(String rawText) {
         this.rawText = rawText;
+    }
+
+    public Integer getAllocatedHours() {
+        return allocatedHours;
+    }
+
+    public void setAllocatedHours(Integer allocatedHours) {
+        this.allocatedHours = allocatedHours;
     }
 }

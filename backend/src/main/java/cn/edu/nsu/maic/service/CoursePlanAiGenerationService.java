@@ -23,8 +23,6 @@ import java.util.Map;
 @Service
 public class CoursePlanAiGenerationService {
 
-    private static final int MIN_MAIN_CONTENT_CHARS = 1500;
-    private static final int TARGET_MAIN_CONTENT_CHARS = 1700;
     private static final int TEACHING_DESIGN_AI_ATTEMPTS = 3;
     private static final int MIN_BLOCK_POINTS = 2;
     private static final int MAX_BLOCK_POINTS = 4;
@@ -148,6 +146,8 @@ public class CoursePlanAiGenerationService {
                 unit.name(),
                 unit.hours(),
                 unit.teachingDesignCount(),
+                unit.teachingDesignHours(),
+                unit.weekRange(),
                 environmentDesign,
                 unit.projectName(),
                 unit.theoryObjectives(),
@@ -263,7 +263,7 @@ public class CoursePlanAiGenerationService {
         TeachingDesignOutline outline = generateFullTeachingDesign(unit, draft, mainMinutes, context);
         List<CoursePlanDtos.MainContentBlock> mainContentBlocks = repairMainContentBlocks(unit, draft, outline.mainContentBlocks(), context, counter);
         try {
-            validateTeachingDesignResult(draft.title(), mainContentBlocks, outline.summary(), outline.assignments(), outline.remarks());
+            validateTeachingDesignResult(draft, mainContentBlocks, outline.summary(), outline.assignments(), outline.remarks());
         } catch (IllegalStateException e) {
             boolean assignmentFailure = e.getMessage() != null && e.getMessage().contains("课外学习要求");
             throw generationException(
@@ -272,7 +272,7 @@ public class CoursePlanAiGenerationService {
                     assignmentFailure ? "assignments" : "mainContent",
                     "",
                     assignmentFailure ? null : mainContentChars(mainContentBlocks),
-                    assignmentFailure ? null : MIN_MAIN_CONTENT_CHARS,
+                    assignmentFailure ? null : requiredMainContentChars(draft.totalMinutes()),
                     e.getMessage(),
                     e
             );
@@ -281,6 +281,7 @@ public class CoursePlanAiGenerationService {
                 draft.index(),
                 draft.title(),
                 draft.focus(),
+                draft.sessionHours(),
                 draft.totalMinutes(),
                 draft.afterClassReviewMinutes(),
                 draft.afterClassReview(),
@@ -307,7 +308,7 @@ public class CoursePlanAiGenerationService {
         for (int attempt = 1; attempt <= TEACHING_DESIGN_AI_ATTEMPTS; attempt++) {
             try {
                 JsonNode root = requestJson(
-                        buildFullTeachingDesignPrompt(mainMinutes, context, retryFeedback),
+                        buildFullTeachingDesignPrompt(draft, mainMinutes, context, retryFeedback),
                         7000,
                         180,
                         "教学设计完整加工"
@@ -364,12 +365,14 @@ public class CoursePlanAiGenerationService {
             ProgressCounter counter
     ) {
         List<CoursePlanDtos.MainContentBlock> repaired = new ArrayList<>();
-        int requiredCharsPerBlock = Math.max(180, (int) Math.ceil((double) MIN_MAIN_CONTENT_CHARS / Math.max(1, generatedBlocks.size())));
+        int totalRequiredChars = requiredMainContentChars(draft.totalMinutes());
+        int requiredCharsPerBlock = Math.max(minPointChars(draft.totalMinutes()) * 2,
+                (int) Math.ceil((double) totalRequiredChars / Math.max(1, generatedBlocks.size())));
         for (int blockIndex = 0; blockIndex < generatedBlocks.size(); blockIndex++) {
             CoursePlanDtos.MainContentBlock block = generatedBlocks.get(blockIndex);
             int actualChars = mainContentChars(block.title(), block.points());
             try {
-                validateExpandedBlock(block, block.points(), requiredCharsPerBlock, actualChars);
+                validateExpandedBlock(block, block.points(), minPointChars(draft.totalMinutes()), requiredCharsPerBlock, actualChars);
                 repaired.add(block);
             } catch (IllegalStateException e) {
                 counter.update(
@@ -381,12 +384,12 @@ public class CoursePlanAiGenerationService {
         }
 
         int totalChars = mainContentChars(repaired);
-        if (totalChars < MIN_MAIN_CONTENT_CHARS) {
+        if (totalChars < totalRequiredChars) {
             int targetIndex = shortestBlockIndex(repaired);
             CoursePlanDtos.MainContentBlock block = repaired.get(targetIndex);
             int requiredChars = mainContentChars(block.title(), block.points())
-                    + (MIN_MAIN_CONTENT_CHARS - totalChars)
-                    + 180;
+                    + (totalRequiredChars - totalChars)
+                    + minPointChars(draft.totalMinutes()) * 2;
             counter.update(
                     "mainContentRetry",
                     "补强第" + unit.index() + "单元 第" + draft.index() + "次课主要内容：" + text(block.title())
@@ -396,7 +399,7 @@ public class CoursePlanAiGenerationService {
         return repaired;
     }
 
-    private String buildFullTeachingDesignPrompt(int mainMinutes, Map<String, Object> context, String retryFeedback) {
+    private String buildFullTeachingDesignPrompt(CoursePlanDtos.TeachingDesign draft, int mainMinutes, Map<String, Object> context, String retryFeedback) {
         String retryInstruction = text(retryFeedback).isBlank()
                 ? ""
                 : """
@@ -405,13 +408,13 @@ public class CoursePlanAiGenerationService {
                 本次必须重新生成完整 JSON，不要复用不合格结果。
                 """.formatted(retryFeedback);
         return """
-                请基于以下“本次课 80 分钟知识点与证据包”，生成课程教案教学设计页的正式内容。
+                请基于以下“本次课 %d 分钟知识点与证据包”，生成课程教案教学设计页的正式内容。
                 严格要求：
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. 不要直接粘贴输入原文长段；必须提炼、组织、润色成高校课堂教案表达。
                 3. introduction 写 2-3 行：复习旧课、问题/案例导入、本次任务说明。
-                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据课次内容自行设计，可参考但不限于：%s；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
-                5. mainContentBlocks.points 每项必须是完整扩写后的教学内容，每个 point 不少于 80 个中文字符，全部 mainContentBlocks 合计目标 1700-2000 字，底线 1500 字。
+                4. mainContentBlocks 必须 %d-%d 项；每项 title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据课次内容自行设计，可参考但不限于：%s；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
+                5. mainContentBlocks.points 每项必须是完整扩写后的教学内容，每个 point 不少于 %d 个中文字符，全部 mainContentBlocks 合计目标不少于 %d 字。
                 6. 每个主要内容块必须围绕本节课不同教学任务展开，教学方式应覆盖案例教学、学生研讨、角色扮演、演示、练习、合作学习、任务分析、自主学习、读书指导、问题教学等多种形态中的合适组合；禁止每块都写同一套“讲解+案例+演示+反馈”流程。
                 7. title 禁止出现【课堂案例与互动】【演示与练习】【教师反馈与评价】这类多标签堆叠或固定套路。
                 8. summary 要求学生针对本节课知识点、重点和难点进行归纳总结，点明已解决问题和待解决问题。
@@ -436,7 +439,17 @@ public class CoursePlanAiGenerationService {
 
                 证据包：
                 %s
-                """.formatted(String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES), mainMinutes, retryInstruction, toJson(context));
+                """.formatted(
+                draft.totalMinutes(),
+                minBlockCount(draft.totalMinutes()),
+                maxBlockCount(draft.totalMinutes()),
+                String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES),
+                mainMinutes,
+                minPointChars(draft.totalMinutes()),
+                requiredMainContentChars(draft.totalMinutes()),
+                retryInstruction,
+                toJson(context)
+        );
     }
 
     private TeachingDesignOutline generateTeachingDesignOutline(
@@ -450,7 +463,7 @@ public class CoursePlanAiGenerationService {
         for (int attempt = 1; attempt <= TEACHING_DESIGN_AI_ATTEMPTS; attempt++) {
             try {
                 JsonNode root = requestJson(
-                        buildTeachingDesignOutlinePrompt(mainMinutes, context, retryFeedback),
+                        buildTeachingDesignOutlinePrompt(draft, mainMinutes, context, retryFeedback),
                         3600,
                         120,
                         "教学设计大纲加工"
@@ -505,7 +518,8 @@ public class CoursePlanAiGenerationService {
             Map<String, Object> context
     ) {
         List<CoursePlanDtos.MainContentBlock> expanded = new ArrayList<>();
-        int requiredCharsPerBlock = Math.max(250, (int) Math.ceil((double) TARGET_MAIN_CONTENT_CHARS / Math.max(1, outlineBlocks.size())));
+        int requiredCharsPerBlock = Math.max(minPointChars(draft.totalMinutes()) * 2,
+                (int) Math.ceil((double) targetMainContentChars(draft.totalMinutes()) / Math.max(1, outlineBlocks.size())));
         for (int blockIndex = 0; blockIndex < outlineBlocks.size(); blockIndex++) {
             expanded.add(expandMainContentBlock(unit, draft, outlineBlocks.get(blockIndex), blockIndex + 1, requiredCharsPerBlock, context));
         }
@@ -595,7 +609,7 @@ public class CoursePlanAiGenerationService {
                 );
                 List<String> points = requiredTextList(root, "points", "主要内容块扩写");
                 lastActualChars = mainContentChars(outlineBlock.title(), points);
-                validateExpandedBlock(outlineBlock, points, requiredChars, lastActualChars);
+                validateExpandedBlock(outlineBlock, points, minPointChars(draft.totalMinutes()), requiredChars, lastActualChars);
                 return new CoursePlanDtos.MainContentBlock(outlineBlock.title(), outlineBlock.minutes(), points);
             } catch (IllegalStateException e) {
                 lastFailure = e;
@@ -615,7 +629,7 @@ public class CoursePlanAiGenerationService {
         );
     }
 
-    private String buildTeachingDesignOutlinePrompt(int mainMinutes, Map<String, Object> context, String retryFeedback) {
+    private String buildTeachingDesignOutlinePrompt(CoursePlanDtos.TeachingDesign draft, int mainMinutes, Map<String, Object> context, String retryFeedback) {
         String retryInstruction = text(retryFeedback).isBlank()
                 ? ""
                 : """
@@ -624,12 +638,12 @@ public class CoursePlanAiGenerationService {
                 本次必须重新生成完整 JSON，不要复用不合格结果。
                 """.formatted(retryFeedback);
         return """
-                请基于以下“本次课 80 分钟知识点与证据包”，生成课程教案教学设计页的大纲和非主要内容字段。
+                请基于以下“本次课 %d 分钟知识点与证据包”，生成课程教案教学设计页的大纲和非主要内容字段。
                 严格要求：
                 1. 只返回 JSON，不要 Markdown，不要解释。
                 2. 不要直接粘贴输入原文长段；必须提炼、组织、润色成高校课堂教案表达。
                 3. introduction 写 2-3 行：复习旧课、问题/案例导入、本次任务说明。
-                4. mainContentBlocks 必须 5-8 项；每项 title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据课次内容自行设计，可参考但不限于：%s；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
+                4. mainContentBlocks 必须 %d-%d 项；每项 title 只能有 1 个教学方式标签，格式为【教学方式】具体教学任务；教学方式由你根据课次内容自行设计，可参考但不限于：%s；不要输出 minutes，系统会按 %d 分钟自动分配每块时间。
                 5. mainContentBlocks.points 只写每个内容块要展开的 2-4 个要点短句，不要在本步骤扩写长文。
                 6. 每个内容块必须对应不同教学任务，教学方式应根据知识点差异自然变化；禁止所有块都套用“课堂案例与互动、演示与练习、教师反馈与评价”固定组合。
                 7. title 禁止出现多组【】标签，只允许一个教学方式标签加一个具体主题标题。
@@ -655,7 +669,15 @@ public class CoursePlanAiGenerationService {
 
                 证据包：
                 %s
-                """.formatted(String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES), mainMinutes, retryInstruction, toJson(context));
+                """.formatted(
+                draft.totalMinutes(),
+                minBlockCount(draft.totalMinutes()),
+                maxBlockCount(draft.totalMinutes()),
+                String.join("、", MAIN_ACTIVITY_TAG_EXAMPLES),
+                mainMinutes,
+                retryInstruction,
+                toJson(context)
+        );
     }
 
     private String buildMainContentOutlineBlockPrompt(
@@ -984,8 +1006,10 @@ public class CoursePlanAiGenerationService {
             validateNoNoise("主要内容设计大纲", blockTitle, String.join("\n", points));
             parsedBlocks.add(new ParsedMainContentBlock(blockTitle, points));
         }
-        if (parsedBlocks.size() < 5 || parsedBlocks.size() > 8) {
-            throw new IllegalStateException("教学设计“" + title + "”的主要内容设计必须为 5-8 项。");
+        int minBlocks = minBlockCount(expectedMinutes + 30);
+        int maxBlocks = maxBlockCount(expectedMinutes + 30);
+        if (parsedBlocks.size() < minBlocks || parsedBlocks.size() > maxBlocks) {
+            throw new IllegalStateException("教学设计“" + title + "”的主要内容设计必须为 " + minBlocks + "-" + maxBlocks + " 项。");
         }
         List<Integer> minutes = distributeMainContentMinutes(expectedMinutes, parsedBlocks.size(), title);
         List<CoursePlanDtos.MainContentBlock> blocks = new ArrayList<>();
@@ -998,8 +1022,10 @@ public class CoursePlanAiGenerationService {
     }
 
     private List<Integer> distributeMainContentMinutes(int expectedMinutes, int blockCount, String title) {
-        if (blockCount < 5 || blockCount > 8) {
-            throw new IllegalStateException("教学设计“" + title + "”的主要内容设计必须为 5-8 项。");
+        int minBlocks = minBlockCount(expectedMinutes + 30);
+        int maxBlocks = maxBlockCount(expectedMinutes + 30);
+        if (blockCount < minBlocks || blockCount > maxBlocks) {
+            throw new IllegalStateException("教学设计“" + title + "”的主要内容设计必须为 " + minBlocks + "-" + maxBlocks + " 项。");
         }
         if (expectedMinutes < blockCount) {
             throw new IllegalStateException("教学设计“" + title + "”的主要内容时间不足以分配给 " + blockCount + " 个内容块。");
@@ -1038,6 +1064,7 @@ public class CoursePlanAiGenerationService {
     private void validateExpandedBlock(
             CoursePlanDtos.MainContentBlock block,
             List<String> points,
+            int minPointChars,
             int requiredChars,
             int actualChars
     ) {
@@ -1046,8 +1073,8 @@ public class CoursePlanAiGenerationService {
         }
         validateMainContentBlockTitle(block.title());
         for (String point : points) {
-            if (text(point).length() < 80) {
-                throw new IllegalStateException("主要内容块“" + block.title() + "”存在少于 80 字的 point。");
+            if (text(point).length() < minPointChars) {
+                throw new IllegalStateException("主要内容块“" + block.title() + "”存在少于 " + minPointChars + " 字的 point。");
             }
         }
         if (actualChars < requiredChars) {
@@ -1058,7 +1085,7 @@ public class CoursePlanAiGenerationService {
     }
 
     private void validateTeachingDesignResult(
-            String title,
+            CoursePlanDtos.TeachingDesign draft,
             List<CoursePlanDtos.MainContentBlock> blocks,
             String summary,
             List<String> assignments,
@@ -1072,14 +1099,14 @@ public class CoursePlanAiGenerationService {
             }
         }
         int mainContentChars = mainText.length();
-        if (mainContentChars < MIN_MAIN_CONTENT_CHARS) {
-            throw new IllegalStateException("教学设计“" + title + "”的大模型主要内容不足 1500 字，当前 "
+        if (mainContentChars < requiredMainContentChars(draft.totalMinutes())) {
+            throw new IllegalStateException("教学设计“" + draft.title() + "”的大模型主要内容不足 " + requiredMainContentChars(draft.totalMinutes()) + " 字，当前 "
                     + mainContentChars + " 字。");
         }
-        validateMainContentBlockDiversity(title, blocks);
-        validateSummary(title, summary);
+        validateMainContentBlockDiversity(draft.title(), blocks);
+        validateSummary(draft.title(), summary);
         String assignmentText = String.join("\n", assignments);
-        validateFormattedAssignments(title, assignments);
+        validateFormattedAssignments(draft.title(), assignments);
         validateNoNoise("教学设计加工", mainText.toString(), summary, assignmentText, String.join("\n", remarks));
     }
 
@@ -1474,6 +1501,54 @@ public class CoursePlanAiGenerationService {
 
     private String normalize(String value) {
         return text(value).replaceAll("[\\s　，。；;：:、,.（）()《》\"“”‘’【】\\-—_]", "");
+    }
+
+    private int requiredMainContentChars(Integer totalMinutes) {
+        int minutes = totalMinutes == null ? 80 : totalMinutes;
+        if (minutes <= 50) {
+            return 800;
+        }
+        if (minutes <= 90) {
+            return 1500;
+        }
+        return 2200;
+    }
+
+    private int targetMainContentChars(Integer totalMinutes) {
+        return requiredMainContentChars(totalMinutes) + 200;
+    }
+
+    private int minBlockCount(Integer totalMinutes) {
+        int minutes = totalMinutes == null ? 80 : totalMinutes;
+        if (minutes <= 50) {
+            return 3;
+        }
+        if (minutes <= 90) {
+            return 5;
+        }
+        return 6;
+    }
+
+    private int maxBlockCount(Integer totalMinutes) {
+        int minutes = totalMinutes == null ? 80 : totalMinutes;
+        if (minutes <= 50) {
+            return 4;
+        }
+        if (minutes <= 90) {
+            return 6;
+        }
+        return 8;
+    }
+
+    private int minPointChars(Integer totalMinutes) {
+        int minutes = totalMinutes == null ? 80 : totalMinutes;
+        if (minutes <= 50) {
+            return 50;
+        }
+        if (minutes <= 90) {
+            return 80;
+        }
+        return 100;
     }
 
     private <T> List<T> safeList(List<T> values) {

@@ -59,7 +59,7 @@
     <article v-if="teachingCalendar" class="card-section">
       <div class="section-head">
         <h3>教学日历</h3>
-        <span>{{ teachingCalendar.fileName }} · {{ teachingCalendar.rowCount || 0 }} 次课</span>
+        <span>{{ teachingCalendar.fileName }} · {{ calendarEntryCount }} 次课</span>
       </div>
       <el-table :data="calendarPreviewRows" border class="calendar-table">
         <el-table-column prop="week" label="周次" width="100" />
@@ -73,7 +73,7 @@
     <article class="card-section">
       <div class="section-head">
         <h3>单元拆分预览</h3>
-        <span>学时会自动影响教学设计数量，课件匹配支持人工修正。</span>
+        <span>{{ splitStrategyText }}，课件匹配支持人工修正。</span>
       </div>
 
       <el-table :data="analysis.units || []" border class="unit-table">
@@ -93,16 +93,24 @@
             <el-input-number
               :model-value="row.hours"
               :min="0"
-              :step="2"
+              :step="1"
               @update:model-value="emit('update-unit-field', $index, 'hours', $event)"
             />
           </template>
         </el-table-column>
-        <el-table-column label="教学设计数" width="120">
+        <el-table-column label="教学设计" width="160">
           <template #default="{ row }">
-            <el-tag :type="row.teachingDesignCount > 0 ? 'success' : 'danger'">
-              {{ row.teachingDesignCount || 0 }}
-            </el-tag>
+            <div class="design-count-cell">
+              <el-tag :type="row.teachingDesignCount > 0 ? 'success' : 'danger'">
+                {{ row.teachingDesignCount || 0 }} 次
+              </el-tag>
+              <span v-if="formatDesignHours(row)" class="design-hours">{{ formatDesignHours(row) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="周次" width="130">
+          <template #default="{ row }">
+            {{ row.weekRange || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="匹配 PPT / 课件" min-width="300">
@@ -189,6 +197,19 @@ const pptOptions = computed(() => props.analysis?.sourceContext?.pptMaterials ||
 const issues = computed(() => props.analysis?.conflicts || [])
 const teachingCalendar = computed(() => props.analysis?.sourceContext?.teachingCalendar || null)
 const calendarPreviewRows = computed(() => (teachingCalendar.value?.entries || []).slice(0, 8))
+const calendarEntryCount = computed(() => teachingCalendar.value?.entries?.length || teachingCalendar.value?.rowCount || 0)
+const splitStrategyText = computed(() => {
+  if (props.analysis?.splitStrategy === 'FLEXIBLE_HOURS') {
+    return '按教学日历课次分配教学设计'
+  }
+  return '按 2 学时模式拆分教学设计'
+})
+
+function formatDesignHours(row) {
+  const hours = Array.isArray(row.teachingDesignHours) ? row.teachingDesignHours.filter(Boolean) : []
+  if (!hours.length) return ''
+  return hours.map((item) => `${item}学时`).join(' + ')
+}
 </script>
 
 <style scoped>
@@ -231,6 +252,18 @@ const calendarPreviewRows = computed(() => (teachingCalendar.value?.entries || [
 
 .section-head span {
   color: #627d98;
+}
+
+.design-count-cell {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.design-hours {
+  color: #627d98;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .issues-alert :deep(.el-alert__content) {

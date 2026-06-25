@@ -572,6 +572,7 @@ public class CoursePlanService {
                 analysis.conflicts(),
                 analysis.valid(),
                 normalizedTeacherRequirements,
+                analysis.splitStrategy(),
                 analysis.sourceContext()
         );
     }

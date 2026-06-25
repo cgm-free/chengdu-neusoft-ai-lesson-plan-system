@@ -44,9 +44,14 @@ public class CoursePlanAnalysisService {
     private static final Pattern PROJECT_LEVEL_PATTERN = Pattern.compile("[一二三四五六七八九十百零〇\\d]+\\s*级\\s*项目");
 
     private final TeachingCalendarParseService teachingCalendarParseService;
+    private final CoursePlanSchedulePlannerService coursePlanSchedulePlannerService;
 
-    public CoursePlanAnalysisService(TeachingCalendarParseService teachingCalendarParseService) {
+    public CoursePlanAnalysisService(
+            TeachingCalendarParseService teachingCalendarParseService,
+            CoursePlanSchedulePlannerService coursePlanSchedulePlannerService
+    ) {
         this.teachingCalendarParseService = teachingCalendarParseService;
+        this.coursePlanSchedulePlannerService = coursePlanSchedulePlannerService;
     }
 
     public CoursePlanDtos.AnalysisResult analyze(
@@ -72,7 +77,9 @@ public class CoursePlanAnalysisService {
         CoursePlanDtos.BasicInfo basicInfo = buildBasicInfo(standardSnapshot, pptMaterials, teachingCalendar);
         conflicts.addAll(validateBasicInfo(basicInfo));
 
-        List<CoursePlanDtos.UnitAnalysis> units = parseUnits(standardSnapshot.text(), pptMaterials, teachingCalendar);
+        List<CoursePlanDtos.UnitAnalysis> units = parseUnits(standardSnapshot.text(), pptMaterials);
+        var plannedSchedule = coursePlanSchedulePlannerService.plan(units, teachingCalendar, basicInfo.totalHours());
+        units = plannedSchedule.units();
         if (units.isEmpty()) {
             conflicts.add(issue("units.missing", "error", "课程标准中未识别到任何“第X单元（X学时）”结构。"));
         }
@@ -89,7 +96,7 @@ public class CoursePlanAnalysisService {
                     "课程标准中的单元学时总和为 " + summedHours + "，与课程总学时 " + basicInfo.totalHours() + " 不一致。"
             ));
         }
-        conflicts.addAll(validateTeachingCalendar(teachingCalendar, units, basicInfo));
+        conflicts.addAll(plannedSchedule.conflicts());
 
         conflicts.addAll(templateSnapshot.templateCheck().issues());
         conflicts.addAll(units.stream().map(CoursePlanDtos.UnitAnalysis::issues).flatMap(Collection::stream).toList());
@@ -107,6 +114,7 @@ public class CoursePlanAnalysisService {
                 deduplicateIssues(conflicts),
                 valid,
                 safeText(teacherRequirements),
+                plannedSchedule.splitStrategy(),
                 new CoursePlanDtos.SourceContext(
                         fileNameOf(standardFile),
                         standardSnapshot.text(),
@@ -117,36 +125,6 @@ public class CoursePlanAnalysisService {
                         standardSnapshot.otherTeachingResources()
                 )
         );
-    }
-
-    private List<CoursePlanDtos.Issue> validateTeachingCalendar(
-            CoursePlanDtos.TeachingCalendar teachingCalendar,
-            List<CoursePlanDtos.UnitAnalysis> units,
-            CoursePlanDtos.BasicInfo basicInfo
-    ) {
-        if (teachingCalendar == null) {
-            return List.of();
-        }
-        List<CoursePlanDtos.TeachingCalendarEntry> entries = teachingCalendar.entries() == null
-                ? List.of()
-                : teachingCalendar.entries();
-        int expectedByUnits = units.stream()
-                .map(CoursePlanDtos.UnitAnalysis::teachingDesignCount)
-                .filter(Objects::nonNull)
-                .mapToInt(Integer::intValue)
-                .sum();
-        int expectedByTotalHours = basicInfo.totalHours() == null || basicInfo.totalHours() <= 0
-                ? 0
-                : basicInfo.totalHours() / 2;
-        int expected = expectedByUnits > 0 ? expectedByUnits : expectedByTotalHours;
-        if (expected > 0 && entries.size() != expected) {
-            return List.of(issue(
-                    "teachingCalendar.countMismatch",
-                    "error",
-                    "教学日历识别到 " + entries.size() + " 次课，与课程标准按 2 学时拆分得到的教学设计数 " + expected + " 不一致。"
-            ));
-        }
-        return List.of();
     }
 
     private List<CoursePlanDtos.Issue> validateBasicInfo(CoursePlanDtos.BasicInfo basicInfo) {
@@ -247,20 +225,14 @@ public class CoursePlanAnalysisService {
 
     private List<CoursePlanDtos.UnitAnalysis> parseUnits(
             String standardText,
-            List<CoursePlanDtos.PptMaterial> pptMaterials,
-            CoursePlanDtos.TeachingCalendar teachingCalendar
+            List<CoursePlanDtos.PptMaterial> pptMaterials
     ) {
         List<UnitSection> sections = extractUnitSections(standardText);
         List<UnitDraft> drafts = new ArrayList<>();
         for (UnitSection section : sections) {
             List<CoursePlanDtos.Issue> issues = new ArrayList<>();
-            Integer teachingDesignCount = null;
             if (section.hours() == null || section.hours() <= 0) {
                 issues.add(issue("unit.hoursMissing", "error", "单元“" + section.name() + "”未识别到有效学时。"));
-            } else if (section.hours() % 2 != 0) {
-                issues.add(issue("unit.hoursNotDivisible", "error", "单元“" + section.name() + "”学时为 " + section.hours() + "，无法按 2 学时拆分教学设计。"));
-            } else {
-                teachingDesignCount = section.hours() / 2;
             }
 
             List<String> contentItems = extractContentItems(section.body());
@@ -273,7 +245,6 @@ public class CoursePlanAnalysisService {
             List<String> assessments = extractAssessmentLines(section.body());
             drafts.add(new UnitDraft(
                     section,
-                    teachingDesignCount,
                     distinctTexts(contentItems),
                     safeText(requirementText),
                     distinctTexts(keyPoints),
@@ -288,8 +259,6 @@ public class CoursePlanAnalysisService {
 
         List<CoursePlanDtos.UnitAnalysis> units = new ArrayList<>();
         var assignments = assignPptsToUnits(drafts, pptMaterials);
-        List<CoursePlanDtos.TeachingCalendarEntry> calendarEntries = teachingCalendarEntries(teachingCalendar);
-        int calendarCursor = 0;
         for (UnitDraft draft : drafts) {
             List<CoursePlanDtos.Issue> issues = new ArrayList<>(draft.issues());
             List<CoursePlanDtos.PptMaterial> matchedPpts = assignments.getOrDefault(draft.section().index(), List.of());
@@ -306,12 +275,6 @@ public class CoursePlanAnalysisService {
             if (slideHeadings.isEmpty()) {
                 issues.add(issue("unit.slideHeadingsMissing", "warning", "单元“" + draft.section().name() + "”对应课件中未提取到可用标题，将优先使用课程标准内容生成。"));
             }
-            List<CoursePlanDtos.TeachingCalendarEntry> unitCalendarEntries = List.of();
-            if (!calendarEntries.isEmpty() && draft.teachingDesignCount() != null && draft.teachingDesignCount() > 0) {
-                int end = Math.min(calendarEntries.size(), calendarCursor + draft.teachingDesignCount());
-                unitCalendarEntries = new ArrayList<>(calendarEntries.subList(calendarCursor, end));
-                calendarCursor = end;
-            }
 
             String status = issues.stream().anyMatch(item -> "error".equalsIgnoreCase(item.level())) ? "blocked" : "ready";
             units.add(new CoursePlanDtos.UnitAnalysis(
@@ -319,7 +282,8 @@ public class CoursePlanAnalysisService {
                     "CU(" + draft.section().index() + ")",
                     draft.section().name(),
                     draft.section().hours(),
-                    draft.teachingDesignCount(),
+                    0,
+                    List.of(),
                     draft.contentItems(),
                     draft.requirementText(),
                     draft.keyPoints(),
@@ -331,21 +295,13 @@ public class CoursePlanAnalysisService {
                     matchedPpts.stream().map(CoursePlanDtos.PptMaterial::fileName).toList(),
                     matchedPpts.stream().map(CoursePlanDtos.PptMaterial::title).toList(),
                     distinctTexts(slideHeadings),
-                    unitCalendarEntries,
+                    List.of(),
+                    "",
                     status,
                     issues
             ));
         }
         return resolveReviewUnitMappings(units, pptMaterials);
-    }
-
-    private List<CoursePlanDtos.TeachingCalendarEntry> teachingCalendarEntries(CoursePlanDtos.TeachingCalendar teachingCalendar) {
-        if (teachingCalendar == null || teachingCalendar.entries() == null) {
-            return List.of();
-        }
-        return teachingCalendar.entries().stream()
-                .filter(entry -> entry != null && isSemanticFragment(entry.topic()))
-                .toList();
     }
 
     private String extractExplicitProjectText(String body) {
@@ -435,6 +391,7 @@ public class CoursePlanAnalysisService {
                             unit.name(),
                             unit.hours(),
                             unit.teachingDesignCount(),
+                            unit.teachingDesignHours(),
                             unit.contentItems(),
                             unit.requirementText(),
                             unit.keyPoints(),
@@ -447,6 +404,7 @@ public class CoursePlanAnalysisService {
                             unit.matchedPptTitles(),
                             unit.slideHeadings(),
                             unit.teachingCalendarEntries(),
+                            unit.weekRange(),
                             "blocked",
                             issues
                     ));
@@ -458,6 +416,7 @@ public class CoursePlanAnalysisService {
                         unit.name(),
                         unit.hours(),
                         unit.teachingDesignCount(),
+                        unit.teachingDesignHours(),
                         unit.contentItems(),
                         unit.requirementText(),
                         unit.keyPoints(),
@@ -470,6 +429,7 @@ public class CoursePlanAnalysisService {
                         distinctTexts(previousPptTitles),
                         distinctTexts(previousHeadings),
                         unit.teachingCalendarEntries(),
+                        unit.weekRange(),
                         "ready",
                         issues.stream().filter(item -> !"unit.pptMissing".equals(item.code())).toList()
                 ));
@@ -1018,7 +978,8 @@ public class CoursePlanAnalysisService {
                 entry.getPeriodCount(),
                 safeText(entry.getLessonType()),
                 safeText(entry.getTopic()),
-                safeText(entry.getRawText())
+                safeText(entry.getRawText()),
+                entry.getAllocatedHours()
         );
     }
 
@@ -1783,7 +1744,6 @@ public class CoursePlanAnalysisService {
 
     private record UnitDraft(
             UnitSection section,
-            Integer teachingDesignCount,
             List<String> contentItems,
             String requirementText,
             List<String> keyPoints,

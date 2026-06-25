@@ -69,7 +69,8 @@ public final class CoursePlanDtos {
             Integer periodCount,
             String lessonType,
             String topic,
-            String rawText
+            String rawText,
+            Integer allocatedHours
     ) {
     }
 
@@ -89,6 +90,7 @@ public final class CoursePlanDtos {
             String name,
             Integer hours,
             Integer teachingDesignCount,
+            List<Integer> teachingDesignHours,
             List<String> contentItems,
             String requirementText,
             List<String> keyPoints,
@@ -101,6 +103,7 @@ public final class CoursePlanDtos {
             List<String> matchedPptTitles,
             List<String> slideHeadings,
             List<TeachingCalendarEntry> teachingCalendarEntries,
+            String weekRange,
             String status,
             List<Issue> issues
     ) {
@@ -125,6 +128,7 @@ public final class CoursePlanDtos {
             List<Issue> conflicts,
             boolean valid,
             String teacherRequirements,
+            String splitStrategy,
             SourceContext sourceContext
     ) {
     }
@@ -140,6 +144,7 @@ public final class CoursePlanDtos {
             Integer index,
             String title,
             String focus,
+            Integer sessionHours,
             Integer totalMinutes,
             Integer afterClassReviewMinutes,
             String afterClassReview,
@@ -161,6 +166,8 @@ public final class CoursePlanDtos {
             String name,
             Integer hours,
             Integer teachingDesignCount,
+            List<Integer> teachingDesignHours,
+            String weekRange,
             String environmentDesign,
             String projectName,
             List<String> theoryObjectives,

@@ -11,13 +11,19 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class CoursePlanContentBuilderService {
-    private static final int TEACHING_DESIGN_TOTAL_MINUTES = 80;
-    private static final int MIN_MAIN_CONTENT_CHARS = 1500;
+    private static final int MINUTES_PER_HOUR = 40;
+
+    private final CoursePlanSchedulePlannerService coursePlanSchedulePlannerService;
+
+    public CoursePlanContentBuilderService(CoursePlanSchedulePlannerService coursePlanSchedulePlannerService) {
+        this.coursePlanSchedulePlannerService = coursePlanSchedulePlannerService;
+    }
 
     public CoursePlanDtos.DocumentContent build(CoursePlanDtos.AnalysisResult analysis, String teacherRequirements) {
         if (analysis == null) {
             throw new IllegalArgumentException("缺少课程教案分析结果");
         }
+        analysis = normalizeAnalysisForBuild(analysis);
         validateAnalysis(analysis);
 
         List<CoursePlanDtos.GeneratedUnit> units = new ArrayList<>();
@@ -40,6 +46,28 @@ public class CoursePlanContentBuilderService {
         );
     }
 
+    private CoursePlanDtos.AnalysisResult normalizeAnalysisForBuild(CoursePlanDtos.AnalysisResult analysis) {
+        if (analysis.sourceContext() == null) {
+            return analysis;
+        }
+        var planned = coursePlanSchedulePlannerService.plan(
+                analysis.units(),
+                analysis.sourceContext().teachingCalendar(),
+                analysis.basicInfo() == null ? null : analysis.basicInfo().totalHours()
+        );
+        return new CoursePlanDtos.AnalysisResult(
+                analysis.templateFileName(),
+                analysis.basicInfo(),
+                analysis.templateCheck(),
+                planned.units(),
+                analysis.conflicts(),
+                analysis.valid(),
+                analysis.teacherRequirements(),
+                planned.splitStrategy(),
+                analysis.sourceContext()
+        );
+    }
+
     private void validateAnalysis(CoursePlanDtos.AnalysisResult analysis) {
         if (analysis.templateCheck() == null || !analysis.templateCheck().valid()) {
             throw new IllegalStateException("教案模板结构校验未通过，不能继续生成课程教案。");
@@ -55,11 +83,20 @@ public class CoursePlanContentBuilderService {
             if (unit.hours() == null || unit.hours() <= 0) {
                 throw new IllegalStateException("单元“" + unit.name() + "”未提供有效学时。");
             }
-            if (unit.hours() % 2 != 0) {
-                throw new IllegalStateException("单元“" + unit.name() + "”学时为 " + unit.hours() + "，无法按 2 学时拆分教学设计。");
+            List<Integer> designHours = safeDesignHours(unit);
+            if (designHours.isEmpty()) {
+                throw new IllegalStateException("单元“" + unit.name() + "”未生成有效的教学设计学时分配。");
             }
-            if (unit.teachingDesignCount() == null || unit.teachingDesignCount() != unit.hours() / 2) {
+            if (unit.teachingDesignCount() == null || unit.teachingDesignCount() != designHours.size()) {
                 throw new IllegalStateException("单元“" + unit.name() + "”的教学设计数与学时不匹配。");
+            }
+            int summedDesignHours = designHours.stream().mapToInt(Integer::intValue).sum();
+            if (summedDesignHours != unit.hours()) {
+                throw new IllegalStateException("单元“" + unit.name() + "”的教学设计学时分配与单元学时不匹配。");
+            }
+            if (CoursePlanSchedulePlannerService.STRATEGY_FIXED_TWO_HOURS.equals(analysis.splitStrategy())
+                    && designHours.stream().anyMatch(value -> value != 2)) {
+                throw new IllegalStateException("单元“" + unit.name() + "”应按 2 学时拆分教学设计，但当前分配不符合固定 2 学时模式。");
             }
             if (unit.matchedPptFiles() == null || unit.matchedPptFiles().isEmpty()) {
                 throw new IllegalStateException("单元“" + unit.name() + "”未匹配到任何 PPT/课件。");
@@ -93,6 +130,8 @@ public class CoursePlanContentBuilderService {
                 unit.name(),
                 unit.hours(),
                 unit.teachingDesignCount(),
+                safeDesignHours(unit),
+                safeText(unit.weekRange()),
                 buildEnvironmentDesign(unit),
                 firstNonBlank(unit.projectText(), "无"),
                 buildTheoryObjectives(unit),
@@ -128,7 +167,7 @@ public class CoursePlanContentBuilderService {
     }
 
     private List<List<String>> buildSessionTopicGroups(CoursePlanDtos.UnitAnalysis unit) {
-        int count = valueOrDefault(unit.teachingDesignCount(), 0);
+        int count = safeDesignHours(unit).size();
         if (count <= 0) {
             return List.of();
         }
@@ -183,9 +222,11 @@ public class CoursePlanContentBuilderService {
     ) {
         List<CoursePlanDtos.TeachingDesign> designs = new ArrayList<>();
         List<CoursePlanDtos.TeachingCalendarEntry> calendarEntries = safeCalendarEntries(unit);
+        List<Integer> designHours = safeDesignHours(unit);
         for (int i = 0; i < sessionTopics.size(); i++) {
             List<String> chunk = sessionTopics.get(i);
             CoursePlanDtos.TeachingCalendarEntry calendarEntry = i < calendarEntries.size() ? calendarEntries.get(i) : null;
+            int sessionHours = i < designHours.size() ? designHours.get(i) : inferSessionHours(calendarEntry, unit);
             String calendarTopic = calendarEntry == null ? "" : safeText(calendarEntry.topic());
             String mainTopic = firstNonBlank(calendarTopic, chunk.isEmpty() ? "" : chunk.get(0), unit.name());
             List<String> focusTopics = buildSessionFocusTopics(unit, calendarEntry, mainTopic, chunk);
@@ -194,13 +235,15 @@ public class CoursePlanContentBuilderService {
             List<String> practicePoints = buildPracticePoints(unit, calendarEntry, mainTopic, focusTopics);
             List<String> matchedSlides = buildMatchedSlides(mainTopic, focusTopics);
             List<String> remarkLines = buildRemarkLines(unit, mainTopic, matchedSlides);
-            SectionDurations durations = buildSectionDurations();
+            int totalMinutes = hoursToMinutes(sessionHours);
+            SectionDurations durations = buildSectionDurations(totalMinutes);
             List<CoursePlanDtos.MainContentBlock> mainContentBlocks = buildMainContentBlocks(
                     unit,
                     calendarEntry,
                     mainTopic,
                     focusTopics,
-                    durations.mainContentMinutes()
+                    durations.mainContentMinutes(),
+                    totalMinutes
             );
 
             designs.add(new CoursePlanDtos.TeachingDesign(
@@ -208,6 +251,7 @@ public class CoursePlanContentBuilderService {
                     "第" + unit.index() + "单元 第" + (i + 1) + "次课："
                             + abbreviate(mainTopic, 28),
                     buildFocus(calendarTopic, focusTopics),
+                    sessionHours,
                     durations.totalMinutes(),
                     durations.afterClassReviewMinutes(),
                     i == 0
@@ -227,15 +271,15 @@ public class CoursePlanContentBuilderService {
         return designs;
     }
 
-    private SectionDurations buildSectionDurations() {
+    private SectionDurations buildSectionDurations(int totalMinutes) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int afterClassReview = random.nextInt(5, 11);
-        int introduction = random.nextInt(5, 11);
-        int summary = random.nextInt(5, 11);
-        int assignment = random.nextInt(5, 11);
-        int mainContent = TEACHING_DESIGN_TOTAL_MINUTES - afterClassReview - introduction - summary - assignment;
+        int afterClassReview = boundedSectionMinutes(totalMinutes, 0.10, 3, 12, random);
+        int introduction = boundedSectionMinutes(totalMinutes, 0.12, 4, 14, random);
+        int summary = boundedSectionMinutes(totalMinutes, 0.10, 3, 12, random);
+        int assignment = boundedSectionMinutes(totalMinutes, 0.08, 3, 10, random);
+        int mainContent = Math.max(20, totalMinutes - afterClassReview - introduction - summary - assignment);
         return new SectionDurations(
-                TEACHING_DESIGN_TOTAL_MINUTES,
+                totalMinutes,
                 afterClassReview,
                 introduction,
                 mainContent,
@@ -249,17 +293,23 @@ public class CoursePlanContentBuilderService {
             CoursePlanDtos.TeachingCalendarEntry calendarEntry,
             String mainTopic,
             List<String> focusTopics,
-            int mainMinutes
+            int mainMinutes,
+            int totalMinutes
     ) {
+        int minMainContentChars = requiredMainContentChars(totalMinutes);
         List<String> evidence = collectMainContentEvidence(unit, calendarEntry, mainTopic, focusTopics);
         if (evidence.size() < 5 || totalTextLength(evidence) < 100) {
             throw new IllegalStateException("单元“" + unit.name() + "”课次“" + mainTopic
-                    + "”可用于主要内容设计的课程标准、PPT 或教学日历信息不足，不能生成不少于 1500 字的主要内容。");
+                    + "”可用于主要内容设计的课程标准、PPT 或教学日历信息不足，不能生成不少于 " + minMainContentChars + " 字的主要内容。");
         }
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int maxBlocks = Math.min(8, evidence.size());
-        int blockCount = random.nextInt(5, maxBlocks + 1);
+        int minBlocks = minMainContentBlocks(totalMinutes);
+        int maxBlocks = Math.min(maxMainContentBlocks(totalMinutes), evidence.size());
+        if (maxBlocks < minBlocks) {
+            maxBlocks = minBlocks;
+        }
+        int blockCount = random.nextInt(minBlocks, maxBlocks + 1);
         List<Integer> minutes = distributeMainContentMinutes(mainMinutes, blockCount);
         String[] titles = {
                 "【讲解】概念框架与学习任务",
@@ -288,7 +338,7 @@ public class CoursePlanContentBuilderService {
         }
 
         int cursor = 0;
-        while (mainContentTextLength(blocks) < MIN_MAIN_CONTENT_CHARS) {
+        while (mainContentTextLength(blocks) < minMainContentChars) {
             CoursePlanDtos.MainContentBlock block = blocks.get(cursor % blocks.size());
             String topic = evidence.get(cursor % evidence.size());
             String related = evidence.get((cursor + 3) % evidence.size());
@@ -300,9 +350,9 @@ public class CoursePlanContentBuilderService {
                     points
             ));
             cursor++;
-            if (cursor > evidence.size() * 8 && mainContentTextLength(blocks) < MIN_MAIN_CONTENT_CHARS) {
+            if (cursor > evidence.size() * 8 && mainContentTextLength(blocks) < minMainContentChars) {
                 throw new IllegalStateException("单元“" + unit.name() + "”课次“" + mainTopic
-                        + "”来源信息不足，不能生成不少于 1500 字的主要内容设计。");
+                        + "”来源信息不足，不能生成不少于 " + minMainContentChars + " 字的主要内容设计。");
             }
         }
         return blocks;
@@ -825,6 +875,81 @@ public class CoursePlanContentBuilderService {
                 .toList();
     }
 
+    private List<Integer> safeDesignHours(CoursePlanDtos.UnitAnalysis unit) {
+        if (unit == null || unit.teachingDesignHours() == null || unit.teachingDesignHours().isEmpty()) {
+            return List.of();
+        }
+        return unit.teachingDesignHours().stream()
+                .filter(value -> value != null && value > 0)
+                .toList();
+    }
+
+    private int inferSessionHours(CoursePlanDtos.TeachingCalendarEntry calendarEntry, CoursePlanDtos.UnitAnalysis unit) {
+        if (calendarEntry != null) {
+            Integer allocatedHours = calendarEntry.allocatedHours();
+            if (allocatedHours != null && allocatedHours > 0) {
+                return allocatedHours;
+            }
+            Integer periodCount = calendarEntry.periodCount();
+            if (periodCount != null && periodCount > 0) {
+                return periodCount;
+            }
+        }
+        int count = unit == null || unit.teachingDesignCount() == null || unit.teachingDesignCount() <= 0 ? 1 : unit.teachingDesignCount();
+        return Math.max(1, (int) Math.ceil((double) Math.max(1, value(unit == null ? null : unit.hours())) / count));
+    }
+
+    private int hoursToMinutes(int hours) {
+        return Math.max(40, hours * MINUTES_PER_HOUR);
+    }
+
+    private int boundedSectionMinutes(
+            int totalMinutes,
+            double ratio,
+            int minValue,
+            int maxValue,
+            ThreadLocalRandom random
+    ) {
+        int base = (int) Math.round(totalMinutes * ratio);
+        int bounded = Math.max(minValue, Math.min(maxValue, base));
+        int delta = bounded <= minValue ? 0 : random.nextInt(0, Math.min(3, bounded - minValue + 1));
+        return Math.max(minValue, Math.min(maxValue, bounded - 1 + delta));
+    }
+
+    private int requiredMainContentChars(int totalMinutes) {
+        if (totalMinutes <= 50) {
+            return 800;
+        }
+        if (totalMinutes <= 90) {
+            return 1500;
+        }
+        return 2200;
+    }
+
+    private int minMainContentBlocks(int totalMinutes) {
+        if (totalMinutes <= 50) {
+            return 3;
+        }
+        if (totalMinutes <= 90) {
+            return 5;
+        }
+        return 6;
+    }
+
+    private int maxMainContentBlocks(int totalMinutes) {
+        if (totalMinutes <= 50) {
+            return 4;
+        }
+        if (totalMinutes <= 90) {
+            return 6;
+        }
+        return 8;
+    }
+
+    private int value(Integer value) {
+        return value == null || value <= 0 ? 0 : value;
+    }
+
     private String buildProjectIntroduction(CoursePlanDtos.UnitAnalysis unit) {
         if (!unit.projectText().isBlank()) {
             return unit.projectText();
@@ -1037,10 +1162,6 @@ public class CoursePlanContentBuilderService {
                 || normalized.contains("好记性不如烂笔头")
                 || normalized.contains("做笔记是个好习惯")
                 || normalized.contains("准备单独的笔记本");
-    }
-
-    private int valueOrDefault(Integer value, int defaultValue) {
-        return value == null ? defaultValue : value;
     }
 
     private String firstNonBlank(String... values) {

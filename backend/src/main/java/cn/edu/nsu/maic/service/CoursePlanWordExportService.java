@@ -337,7 +337,7 @@ public class CoursePlanWordExportService {
         XWPFTable table = requireFirstTableInRange(document, range, "单元首页");
         fillAdjacentCell(table, "单元", unit.code());
         fillAdjacentCell(table, "学时", value(unit.hours()));
-        fillAdjacentCell(table, "周次", value(detail.content().basicInfo().semester()));
+        fillAdjacentCell(table, "周次", valueOrNone(firstNonBlank(unit.weekRange(), detail.content().basicInfo().semester())));
         fillAdjacentCell(table, "教学环境设计", value(unit.environmentDesign()));
         fillAdjacentCell(table, "单元名称", value(unit.name()));
         fillAdjacentCell(table, "项目名称（级别）", valueOrNone(unit.projectName()));
@@ -472,6 +472,9 @@ public class CoursePlanWordExportService {
         }
         List<String> lines = new ArrayList<>();
         lines.add("单元：" + value(unit.name()));
+        if (design.sessionHours() != null && design.sessionHours() > 0) {
+            lines.add("本次学时：" + design.sessionHours() + "学时");
+        }
         lines.add("教学焦点：" + abbreviate(design.focus(), 42));
         List<String> matchedSlides = design.matchedSlides().stream()
                 .map(this::value)
