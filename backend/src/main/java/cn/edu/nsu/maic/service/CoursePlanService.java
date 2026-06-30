@@ -175,11 +175,18 @@ public class CoursePlanService {
     }
 
     public List<CoursePlanDtos.CoursePlanSummary> listLatest(UserInfo user) {
-        String sql = "select id, title, course_name, status, updated_at from course_plan where status <> 'deleted' ";
+        String sql = """
+                select cp.id, cp.title, cp.course_name, cp.status, cp.updated_at,
+                       coalesce(su.real_name, su.username, '') as teacher_name,
+                       coalesce(su.department, '') as department
+                from course_plan cp
+                left join sys_user su on su.id = cp.user_id
+                where cp.status <> 'deleted'
+                """;
         if (user.isAdmin()) {
-            return jdbcTemplate.query(sql + "order by updated_at desc limit 100", this::mapSummary);
+            return jdbcTemplate.query(sql + "order by cp.updated_at desc limit 100", this::mapSummary);
         }
-        return jdbcTemplate.query(sql + "and user_id = ? order by updated_at desc limit 100", this::mapSummary, user.getId());
+        return jdbcTemplate.query(sql + "and cp.user_id = ? order by cp.updated_at desc limit 100", this::mapSummary, user.getId());
     }
 
     public CoursePlanDtos.Detail getDetail(Long id, UserInfo user) {
@@ -660,6 +667,8 @@ public class CoursePlanService {
                 rs.getLong("id"),
                 rs.getString("title"),
                 rs.getString("course_name"),
+                rs.getString("teacher_name"),
+                rs.getString("department"),
                 rs.getString("status"),
                 updatedAt == null ? null : updatedAt.toLocalDateTime(),
                 "course-plan"

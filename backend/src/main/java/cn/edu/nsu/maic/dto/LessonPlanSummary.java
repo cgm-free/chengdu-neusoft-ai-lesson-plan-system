@@ -7,6 +7,8 @@ public class LessonPlanSummary {
     private Long id;
     private String title;
     private String courseName;
+    private String teacherName;
+    private String department;
     private String topic;
     private String lessonType;
     private Integer totalMinutes;
@@ -35,6 +37,22 @@ public class LessonPlanSummary {
 
     public void setCourseName(String courseName) {
         this.courseName = courseName;
+    }
+
+    public String getTeacherName() {
+        return teacherName;
+    }
+
+    public void setTeacherName(String teacherName) {
+        this.teacherName = teacherName;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
     }
 
     public String getTopic() {
@@ -77,4 +95,3 @@ public class LessonPlanSummary {
         this.updatedAt = updatedAt;
     }
 }
-

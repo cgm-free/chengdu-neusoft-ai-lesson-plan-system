@@ -32,6 +32,8 @@
           </el-table-column>
           <el-table-column prop="title" label="标题" min-width="240" />
           <el-table-column prop="courseName" label="课程名称" min-width="160" />
+          <el-table-column prop="teacherName" label="教师姓名" width="120" />
+          <el-table-column prop="department" label="院系" min-width="190" />
           <el-table-column prop="topic" label="章节主题" min-width="160" />
           <el-table-column label="更新时间" width="180">
             <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
@@ -105,7 +107,9 @@ const filteredPlans = computed(() => {
   const word = keyword.value.trim().toLowerCase()
   return plans.value.filter((item) => {
     const matchesCourse = !courseFilter.value || item.courseName === courseFilter.value
-    const haystack = [item.title, item.courseName, item.topic, item.typeLabel].join(' ').toLowerCase()
+    const haystack = [item.title, item.courseName, item.teacherName, item.department, item.topic, item.typeLabel]
+      .join(' ')
+      .toLowerCase()
     return matchesCourse && (!word || haystack.includes(word))
   })
 })

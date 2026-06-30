@@ -272,6 +272,8 @@ public final class CoursePlanDtos {
             Long id,
             String title,
             String courseName,
+            String teacherName,
+            String department,
             String status,
             LocalDateTime updatedAt,
             String type

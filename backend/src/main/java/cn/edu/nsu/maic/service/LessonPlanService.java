@@ -40,12 +40,18 @@ public class LessonPlanService {
     }
 
     public List<LessonPlanSummary> listLatest(UserInfo user) {
-        String sql = "select id, title, course_name, topic, lesson_type, total_minutes, status, updated_at " +
-                "from lesson_plan where status <> 'deleted' ";
+        String sql = """
+                select lp.id, lp.title, lp.course_name, lp.topic, lp.lesson_type, lp.total_minutes, lp.status, lp.updated_at,
+                       coalesce(su.real_name, su.username, '') as teacher_name,
+                       coalesce(su.department, '') as department
+                from lesson_plan lp
+                left join sys_user su on su.id = lp.user_id
+                where lp.status <> 'deleted'
+                """;
         if (user.isAdmin()) {
-            return jdbcTemplate.query(sql + "order by updated_at desc limit 100", this::mapSummary);
+            return jdbcTemplate.query(sql + "order by lp.updated_at desc limit 100", this::mapSummary);
         }
-        return jdbcTemplate.query(sql + "and user_id = ? order by updated_at desc limit 100", this::mapSummary, user.getId());
+        return jdbcTemplate.query(sql + "and lp.user_id = ? order by lp.updated_at desc limit 100", this::mapSummary, user.getId());
     }
 
     public Long createDraft(LessonPlanRequest request, UserInfo user) {
@@ -310,6 +316,8 @@ public class LessonPlanService {
         item.setId(rs.getLong("id"));
         item.setTitle(rs.getString("title"));
         item.setCourseName(rs.getString("course_name"));
+        item.setTeacherName(rs.getString("teacher_name"));
+        item.setDepartment(rs.getString("department"));
         item.setTopic(rs.getString("topic"));
         item.setLessonType(rs.getString("lesson_type"));
         item.setTotalMinutes(rs.getInt("total_minutes"));
