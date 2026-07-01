@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 public class CoursePlanAnalysisService {
 
     private static final Pattern UNIT_PATTERN = Pattern.compile(
-            "(第[一二三四五六七八九十百零〇\\d]+单元)[：:\\s\\u3000]*([^（(\\n]+?)[\\s\\u3000]*[（(]\\s*(\\d+)\\s*(?:个)?\\s*学时[）)]"
+            "(第[一二三四五六七八九十百零〇\\d]+单元)[：:\\s\\u3000]*([^（(\\n]+?)[\\s\\u3000]*[（(]\\s*([^）)\\n]*?学时[^）)\\n]*?)[）)]"
     );
     private static final Pattern HOURS_PATTERN = Pattern.compile("(\\d+)");
     private static final Pattern SEMESTER_PATTERN = Pattern.compile("(20\\d{2}\\s*[-—－~至]\\s*20\\d{2}\\s*学年\\s*第\\s*[一二三四五六七八九十\\d]+\\s*学期)");
@@ -81,7 +81,7 @@ public class CoursePlanAnalysisService {
         var plannedSchedule = coursePlanSchedulePlannerService.plan(units, teachingCalendar, basicInfo.totalHours());
         units = plannedSchedule.units();
         if (units.isEmpty()) {
-            conflicts.add(issue("units.missing", "error", "课程标准中未识别到任何“第X单元（X学时）”结构。"));
+            conflicts.add(issue("units.missing", "error", "课程标准中未识别到任何“第X单元（X学时）”或“第X单元（X学时理论+X学时实践）”结构。"));
         }
 
         int summedHours = units.stream()
@@ -1160,7 +1160,7 @@ public class CoursePlanAnalysisService {
         List<MatchPoint> matches = new ArrayList<>();
         while (matcher.find()) {
             String name = safeText(matcher.group(2));
-            Integer hours = parsePositiveInt(matcher.group(3));
+            Integer hours = parseUnitHoursExpression(matcher.group(3));
             matches.add(new MatchPoint(matches.size() + 1, matcher.start(), matcher.end(), name, hours));
         }
         for (int i = 0; i < matches.size(); i++) {
@@ -1170,6 +1170,32 @@ public class CoursePlanAnalysisService {
             sections.add(new UnitSection(current.index(), current.name(), current.hours(), body));
         }
         return sections;
+    }
+
+    private Integer parseUnitHoursExpression(String expression) {
+        String text = safeText(expression);
+        if (text.isBlank()) {
+            return null;
+        }
+        Matcher totalMatcher = Pattern.compile("(?:共|合计|总计|总)\\s*(\\d+)\\s*(?:个)?\\s*学时").matcher(text);
+        if (totalMatcher.find()) {
+            return parsePositiveInt(totalMatcher.group(1));
+        }
+        Matcher matcher = Pattern.compile("(\\d+)\\s*(?:个)?\\s*学时").matcher(text);
+        List<Integer> values = new ArrayList<>();
+        while (matcher.find()) {
+            Integer value = parsePositiveInt(matcher.group(1));
+            if (value != null && value > 0) {
+                values.add(value);
+            }
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        if (values.size() == 1) {
+            return values.get(0);
+        }
+        return values.stream().mapToInt(Integer::intValue).sum();
     }
 
     private List<String> extractContentItems(String body) {
